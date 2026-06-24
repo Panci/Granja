@@ -1,0 +1,13 @@
+{
+  "name": "erp-animal",
+  "version": "1.0.0",
+  "description": "ERP Animal — Sistema de Gestión Veterinaria y Cuidado Animal",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.3.0"
+  }
+}
