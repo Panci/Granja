@@ -28,6 +28,63 @@ const Store = (() => {
     _emit(collection);
   }
 
+  const API_URL = 'api.php';
+
+  async function _apiCall(action, collection, body = null) {
+    try {
+      const options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      };
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+      const res = await fetch(`${API_URL}?action=${action}&collection=${collection}`, options);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const result = await res.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error');
+      }
+      return result;
+    } catch (err) {
+      console.error(`API Error during ${action} on ${collection}:`, err);
+      if (window.Helpers && typeof window.Helpers.showToast === 'function') {
+        window.Helpers.showToast(`Error de sincronización: ${err.message}`, 'error');
+      }
+    }
+  }
+
+  async function syncFromDatabase() {
+    try {
+      const res = await fetch(`${API_URL}?action=fetch_all`);
+      if (!res.ok) {
+        throw new Error(`HTTP status: ${res.status}`);
+      }
+      const result = await res.json();
+      if (result.success && result.data) {
+        const collections = Object.keys(ID_PREFIXES);
+        collections.forEach(col => {
+          if (Array.isArray(result.data[col])) {
+            localStorage.setItem(_key(col), JSON.stringify(result.data[col]));
+            _emit(col);
+          }
+        });
+        console.log('Database synchronization completed successfully.');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to sync from database:', err);
+      if (window.Helpers && typeof window.Helpers.showToast === 'function') {
+        window.Helpers.showToast('No se pudo conectar con el servidor. Usando datos locales.', 'warning');
+      }
+      return false;
+    }
+  }
+
+
   function _emit(collection) {
     if (listeners[collection]) {
       listeners[collection].forEach(fn => fn(_read(collection)));
@@ -81,10 +138,15 @@ const Store = (() => {
     if (!item.id) {
       item.id = _nextId(collection);
     }
-    item._createdAt = new Date().toISOString();
-    item._updatedAt = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    item._createdAt = now;
+    item._updatedAt = now;
     data.push(item);
     _write(collection, data);
+    
+    // Sync to remote MySQL database in the background
+    _apiCall('create', collection, item);
+    
     return item;
   }
 
@@ -92,8 +154,15 @@ const Store = (() => {
     const data = _read(collection);
     const index = data.findIndex(item => item.id === id);
     if (index === -1) return null;
-    data[index] = { ...data[index], ...updates, _updatedAt: new Date().toISOString() };
+    
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const updatedItem = { ...data[index], ...updates, _updatedAt: now };
+    data[index] = updatedItem;
     _write(collection, data);
+    
+    // Sync to remote MySQL database in the background
+    _apiCall('update', collection, { id, ...updates, _updatedAt: now });
+    
     return data[index];
   }
 
@@ -102,6 +171,10 @@ const Store = (() => {
     const filtered = data.filter(item => item.id !== id);
     if (filtered.length === data.length) return false;
     _write(collection, filtered);
+    
+    // Sync delete to remote MySQL database in the background
+    _apiCall('delete', collection, { id });
+    
     return true;
   }
 
@@ -150,6 +223,10 @@ const Store = (() => {
           _write(col, allData[col]);
         }
       });
+      
+      // Sincronizar importación completa con la base de datos MySQL
+      _apiCall('import', '', allData);
+      
       return true;
     } catch (e) {
       console.error('Import failed:', e);
@@ -199,5 +276,6 @@ const Store = (() => {
     importAll,
     downloadBackup,
     initDefaultSpecies,
+    syncFromDatabase,
   };
 })();

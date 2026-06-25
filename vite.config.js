@@ -35,6 +35,20 @@ export default defineConfig({
         copyDir(resolve(__dirname, 'js'), resolve(__dirname, 'dist/js'));
         copyDir(resolve(__dirname, 'assets'), resolve(__dirname, 'dist/assets'));
         copyDir(resolve(__dirname, 'css'), resolve(__dirname, 'dist/css'));
+
+        // Copy PHP backend files to dist
+        if (fs.existsSync(resolve(__dirname, 'api.php'))) {
+          fs.copyFileSync(resolve(__dirname, 'api.php'), resolve(__dirname, 'dist/api.php'));
+        }
+        if (fs.existsSync(resolve(__dirname, 'config.php'))) {
+          fs.copyFileSync(resolve(__dirname, 'config.php'), resolve(__dirname, 'dist/config.php'));
+        }
+        if (fs.existsSync(resolve(__dirname, 'setup_db.php'))) {
+          fs.copyFileSync(resolve(__dirname, 'setup_db.php'), resolve(__dirname, 'dist/setup_db.php'));
+        }
+        if (fs.existsSync(resolve(__dirname, 'database.sql'))) {
+          fs.copyFileSync(resolve(__dirname, 'database.sql'), resolve(__dirname, 'dist/database.sql'));
+        }
       }
     }
   ]

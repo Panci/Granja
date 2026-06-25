@@ -17,7 +17,8 @@ const App = (() => {
     finanzas: { label: 'Finanzas', icon: '💰', section: 'produccion' },
   };
 
-  function init() {
+  async function init() {
+    await Store.syncFromDatabase();
     Store.initDefaultSpecies();
     _renderShell();
     navigateTo('dashboard');
