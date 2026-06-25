@@ -58,7 +58,13 @@ const Store = (() => {
 
   async function syncFromDatabase() {
     try {
-      const res = await fetch(`${API_URL}?action=fetch_all`);
+      // Usar un parámetro de tiempo para evitar que los navegadores (especialmente en móviles) cacheen la petición GET
+      const res = await fetch(`${API_URL}?action=fetch_all&_t=${new Date().getTime()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       if (!res.ok) {
         throw new Error(`HTTP status: ${res.status}`);
       }
