@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Helpers = (() => {
+window.Helpers = (() => {
 
   // ---- Date formatting ----
 

@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Salud = (() => {
+window.Salud = (() => {
 
   let currentTab = 'vacunas';
   let filterAnimal = '';

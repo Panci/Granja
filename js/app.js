@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const App = (() => {
+window.App = (() => {
 
   let currentModule = 'dashboard';
 

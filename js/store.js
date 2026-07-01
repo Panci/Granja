@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Store = (() => {
+window.Store = (() => {
   const PREFIX = 'erp_';
   const listeners = {};
 

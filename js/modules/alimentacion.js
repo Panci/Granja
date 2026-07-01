@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Alimentacion = (() => {
+window.Alimentacion = (() => {
 
   let currentTab = 'dietas';
 

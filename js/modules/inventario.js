@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Inventario = (() => {
+window.Inventario = (() => {
 
   let currentFilter = { especie: '', estado: '' };
 

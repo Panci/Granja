@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Finanzas = (() => {
+window.Finanzas = (() => {
 
   const CATEGORIAS = ['Comida', 'Veterinario', 'Medicamentos', 'Infraestructura', 'Gastos Generales'];
 

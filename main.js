@@ -1,0 +1,10 @@
+import './js/store.js';
+import './js/utils/helpers.js';
+import './js/utils/charts.js';
+import './js/modules/inventario.js';
+import './js/modules/salud.js';
+import './js/modules/alimentacion.js';
+import './js/modules/reproduccion.js';
+import './js/modules/produccion.js';
+import './js/modules/finanzas.js';
+import './js/app.js';

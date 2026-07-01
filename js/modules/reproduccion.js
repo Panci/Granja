@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Reproduccion = (() => {
+window.Reproduccion = (() => {
 
   function render() {
     const registros = Store.getAll('reproduccion');

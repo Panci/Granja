@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Produccion = (() => {
+window.Produccion = (() => {
 
   let viewPeriod = 'semanal';
 

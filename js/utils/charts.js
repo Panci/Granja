@@ -3,7 +3,7 @@
 // ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
 
-const Charts = (() => {
+window.Charts = (() => {
 
   const COLORS = [
     '#4ade80', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa',
