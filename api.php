@@ -1,8 +1,28 @@
 <?php
 // ============================================================
 // api.php — API REST para ERP Animal
-// ERP Animal — Sistema de Gestión Veterinaria
 // ============================================================
+
+// --- Configuración de producción: nunca enviar errores HTML ---
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
+ini_set('log_errors', 1);        // Los errores van al log del servidor, no al navegador
+
+ob_start(); // Capturar cualquier salida accidental (BOM, whitespace, warnings)
+
+// --- Función centralizada de respuesta JSON ---
+// Garantiza que TODA respuesta de esta API sea JSON válido,
+// descartando cualquier basura que PHP haya emitido antes.
+function sendJson($data, $httpCode = 200) {
+    // Descartar cualquier salida previa (warnings, espacios, BOM...)
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code($httpCode);
+    header("Content-Type: application/json; charset=UTF-8");
+    echo json_encode($data);
+    exit;
+}
 
 // CORS headers
 header("Access-Control-Allow-Origin: *");
@@ -45,18 +65,10 @@ if ($action === 'fetch_all') {
             $stmt = $pdo->query("SELECT * FROM `$col`");
             $data[$col] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
-        echo json_encode([
-            "success" => true,
-            "data" => $data
-        ]);
+        sendJson(["success" => true, "data" => $data]);
     } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            "success" => false,
-            "error" => "Error al obtener datos: " . $e->getMessage()
-        ]);
+        sendJson(["success" => false, "error" => "Error al obtener datos: " . $e->getMessage()], 500);
     }
-    exit;
 }
 
 // 5. Action: import (POST)
@@ -64,9 +76,7 @@ if ($action === 'fetch_all') {
 if ($action === 'import') {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "error" => "Datos de importación vacíos"]);
-        exit;
+        sendJson(["success" => false, "error" => "Datos de importación vacíos"], 400);
     }
 
     try {
@@ -102,28 +112,18 @@ if ($action === 'import') {
         }
         
         $pdo->commit();
-        echo json_encode(["success" => true]);
+        sendJson(["success" => true]);
     } catch (\Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        http_response_code(500);
-        echo json_encode([
-            "success" => false,
-            "error" => "Error al importar datos en la BD: " . $e->getMessage()
-        ]);
+        sendJson(["success" => false, "error" => "Error al importar datos en la BD: " . $e->getMessage()], 500);
     }
-    exit;
 }
 
 // For all other actions, we need a valid collection
 if (!in_array($collection, $valid_collections)) {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false, 
-        "error" => "Colección no válida"
-    ]);
-    exit;
+    sendJson(["success" => false, "error" => "Colección no válida"], 400);
 }
 
 // Read JSON input
@@ -132,9 +132,7 @@ $input = json_decode(file_get_contents('php://input'), true);
 // 2. Action: create (POST)
 if ($action === 'create') {
     if (!$input) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "error" => "Datos de entrada vacíos"]);
-        exit;
+        sendJson(["success" => false, "error" => "Datos de entrada vacíos"], 400);
     }
 
     try {
@@ -157,23 +155,16 @@ if ($action === 'create') {
         
         $stmt->execute();
         
-        echo json_encode(["success" => true]);
+        sendJson(["success" => true]);
     } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            "success" => false, 
-            "error" => "Error al insertar registro: " . $e->getMessage()
-        ]);
+        sendJson(["success" => false, "error" => "Error al insertar registro: " . $e->getMessage()], 500);
     }
-    exit;
 }
 
 // 3. Action: update (POST / PUT)
 if ($action === 'update') {
     if (!$input || !isset($input['id'])) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "error" => "Datos inválidos o falta el ID"]);
-        exit;
+        sendJson(["success" => false, "error" => "Datos inválidos o falta el ID"], 400);
     }
 
     try {
@@ -181,8 +172,7 @@ if ($action === 'update') {
         unset($input['id']); // Don't update the ID column
         
         if (empty($input)) {
-            echo json_encode(["success" => true, "message" => "Nada que actualizar"]);
-            exit;
+            sendJson(["success" => true, "message" => "Nada que actualizar"]);
         }
 
         $sets = [];
@@ -206,23 +196,16 @@ if ($action === 'update') {
         
         $stmt->execute();
         
-        echo json_encode(["success" => true]);
+        sendJson(["success" => true]);
     } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            "success" => false, 
-            "error" => "Error al actualizar registro: " . $e->getMessage()
-        ]);
+        sendJson(["success" => false, "error" => "Error al actualizar registro: " . $e->getMessage()], 500);
     }
-    exit;
 }
 
 // 4. Action: delete (POST / DELETE)
 if ($action === 'delete') {
     if (!$input || !isset($input['id'])) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "error" => "Datos inválidos o falta el ID"]);
-        exit;
+        sendJson(["success" => false, "error" => "Datos inválidos o falta el ID"], 400);
     }
 
     try {
@@ -230,17 +213,11 @@ if ($action === 'delete') {
         $stmt = $pdo->prepare($sql);
         $stmt->execute(['id' => $input['id']]);
         
-        echo json_encode(["success" => true]);
+        sendJson(["success" => true]);
     } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            "success" => false, 
-            "error" => "Error al eliminar registro: " . $e->getMessage()
-        ]);
+        sendJson(["success" => false, "error" => "Error al eliminar registro: " . $e->getMessage()], 500);
     }
-    exit;
 }
 
 // Unknown action
-http_response_code(404);
-echo json_encode(["success" => false, "error" => "Acción no reconocida"]);
+sendJson(["success" => false, "error" => "Acción no reconocida"], 404);

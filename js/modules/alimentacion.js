@@ -48,11 +48,13 @@ window.Alimentacion = (() => {
     const dietas = Store.getAll('dietas');
 
     return Helpers.renderTable([
-      { label: 'Grupo / Animal', render: r => {
-        if (r.grupo) return `${Helpers.speciesIcon(r.grupo)} ${r.grupo} (Grupo)`;
-        const a = Store.getById('animals', r.animalId);
-        return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId;
-      }},
+      {
+        label: 'Grupo / Animal', render: r => {
+          if (r.grupo) return `${Helpers.speciesIcon(r.grupo)} ${r.grupo} (Grupo)`;
+          const a = Store.getById('animals', r.animalId);
+          return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId;
+        }
+      },
       { label: 'Tipo de Comida', key: 'tipoPienso' },
       { label: 'Cantidad', render: r => `${r.cantidad || '—'} ${r.unidad || ''}` },
       { label: 'Frecuencia', key: 'frecuencia' },

@@ -43,12 +43,6 @@ export default defineConfig({
         if (fs.existsSync(resolve(__dirname, 'config.php'))) {
           fs.copyFileSync(resolve(__dirname, 'config.php'), resolve(__dirname, 'dist/config.php'));
         }
-        if (fs.existsSync(resolve(__dirname, 'setup_db.php'))) {
-          fs.copyFileSync(resolve(__dirname, 'setup_db.php'), resolve(__dirname, 'dist/setup_db.php'));
-        }
-        if (fs.existsSync(resolve(__dirname, 'database.sql'))) {
-          fs.copyFileSync(resolve(__dirname, 'database.sql'), resolve(__dirname, 'dist/database.sql'));
-        }
       }
     }
   ]

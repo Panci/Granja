@@ -28,6 +28,24 @@ window.Store = (() => {
     _emit(collection);
   }
 
+  // ---- Parseo seguro de respuestas del servidor ----
+  // Lee la respuesta como texto y valida que sea JSON válido.
+  // Si PHP devuelve HTML (warnings, errores), lanza un error descriptivo
+  // en lugar de un SyntaxError críptico.
+  async function _parseJsonResponse(res) {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Detectar si el servidor devolvió HTML (error de PHP)
+      const preview = text.substring(0, 200).trim();
+      if (preview.startsWith('<') || preview.includes('<br') || preview.includes('<b>')) {
+        throw new Error(`El servidor devolvió HTML en lugar de JSON. Posible error de PHP en el servidor.`);
+      }
+      throw new Error(`Respuesta del servidor no es JSON válido: ${preview}`);
+    }
+  }
+
   const API_URL = 'api.php';
 
   async function _apiCall(action, collection, body = null) {
@@ -43,7 +61,7 @@ window.Store = (() => {
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-      const result = await res.json();
+      const result = await _parseJsonResponse(res);
       if (!result.success) {
         throw new Error(result.error || 'Unknown error');
       }
@@ -68,7 +86,7 @@ window.Store = (() => {
       if (!res.ok) {
         throw new Error(`HTTP status: ${res.status}`);
       }
-      const result = await res.json();
+      const result = await _parseJsonResponse(res);
       if (result.success && result.data) {
         const collections = Object.keys(ID_PREFIXES);
         collections.forEach(col => {
