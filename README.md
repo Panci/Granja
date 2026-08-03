@@ -2,7 +2,7 @@
 
 Aplicación web progresiva (PWA-ready) para gestión de granjas, clínicas y refugios de animales. Controla inventario, salud, alimentación, reproducción, producción y finanzas en un solo lugar.
 
-**Stack:** HTML + CSS + JavaScript vanilla + Vite + PHP/MySQL + LocalStorage.
+**Stack:** HTML + CSS + JavaScript vanilla + Vite + PHP/MySQL + LocalStorage. **Docker-ready** para Dokploy.
 
 ---
 
@@ -20,7 +20,72 @@ Aplicación web progresiva (PWA-ready) para gestión de granjas, clínicas y ref
 
 ---
 
-## �� Despliegue en Hostinger (VPS)
+## 🐳 Despliegue en Dokploy (Recomendado)
+
+Dokploy es un panel self-hosted similar a Vercel/Netlify pero para VPS. **Esta es la opción más fácil y robusta.**
+
+### Requisitos
+
+- VPS con Dokploy instalado (https://dokploy.com/)
+- Repositorio Git (GitHub, GitLab, Gitea)
+
+### Paso 1 — Crear el proyecto en Dokploy
+
+1. Entra a tu panel de Dokploy (ej. `https://dokploy.tu-dominio.com`)
+2. Click en **Create Project** → nombre: `erp-animal`
+3. Click en **Create Service** → selecciona **Application**
+4. **Source**: GitHub (o GitLab)
+5. **Repository**: `https://github.com/TU_USUARIO/Granja.git`
+6. **Branch**: `main`
+7. **Build Path**: `/` (raíz)
+8. **Compose File**: marca "Docker Compose" y selecciona `docker-compose.yml`
+
+### Paso 2 — Variables de entorno
+
+En Dokploy → tu aplicación → **Environment**, añade:
+
+| Variable | Valor |
+|---|---|
+| `DB_NAME` | `erp_animal` |
+| `DB_USER` | `erp_user` |
+| `DB_PASS` | `TU_PASSWORD_SEGURA` |
+| `MYSQL_ROOT_PASSWORD` | `OTRA_PASSWORD_SEGURA` |
+| `APP_DOMAIN` | `erp.tu-dominio.com` |
+| `TZ` | `Europe/Madrid` (tu zona) |
+
+### Paso 3 — Dominio y SSL
+
+1. En Dokploy → tu app → **Domains**
+2. Añade tu dominio: `erp.tu-dominio.com`
+3. Marca **Generate SSL** (Let's Encrypt automático)
+4. En tu proveedor DNS, apunta el subdominio a la IP del VPS:
+   ```
+   erp.tu-dominio.com   A   123.456.789.0
+   ```
+
+### Paso 4 — Deploy
+
+Click en **Deploy**. Dokploy:
+1. ✅ Clona tu repo de GitHub
+2. ✅ Construye la imagen Docker (Node + PHP)
+3. ✅ Levanta los contenedores (app + MariaDB)
+4. ✅ Configura SSL
+5. ✅ Importa el esquema automáticamente
+6. ✅ Tu app está en `https://erp.tu-dominio.com/`
+
+### Actualizaciones futuras
+
+Solo haz `git push` y Dokploy redespliega automáticamente (auto-deploy).
+
+### Estructura Docker
+
+- **`app`**: PHP 8.2 + Apache (imagen custom multi-stage)
+- **`db`**: MariaDB 11 con volumen persistente
+- **Red interna**: ambos servicios se comunican por red Docker
+
+---
+
+## 🛠️ Despliegue clásico en Hostinger (VPS sin Dokploy)
 
 ### Requisitos previos
 
@@ -76,19 +141,36 @@ Esto genera la carpeta `dist/` con:
 
 ### 3️⃣ Subir al VPS
 
-**Opción A — SCP/SFTP:**
+Tienes **3 opciones** según tu nivel de automatización:
+
+#### ��️ Manual con SCP/SFTP (más simple)
 
 ```bash
 scp -r dist/* usuario@tu-vps-hostinger:/home/usuario/public_html/
 ```
 
-**Opción B — rsync:**
+#### ��️ Manual con Git + script (recomendado)
+
+Una vez clonado el repo en el VPS, futuras actualizaciones son tan simples como:
 
 ```bash
-rsync -avz --delete dist/ usuario@tu-vps-hostinger:/home/usuario/public_html/
+ssh usuario@tu-vps-hostinger
+cd /home/usuario/public_html
+./deploy.sh
 ```
 
-**Opción C — Manual con FileZilla:** arrastra el contenido de `dist/` a `public_html/`.
+Este script (`deploy.sh`) está incluido en el repo y automatiza:
+- ✅ Backup del estado anterior (con rotación)
+- ✅ Pull desde GitHub
+- ✅ Build de producción
+- ✅ Permisos correctos
+- ✅ Verificación de BD
+
+[Ver sección de configuración manual →](#configuración-del-script-deploysh)
+
+#### �� Automático con GitHub Actions (más pro)
+
+Cada `git push` a la rama `main` despliega automáticamente al VPS. Ver [despliegue automático →](#despliegue-automático-con-github
 
 ### 4️⃣ Configurar `config.php` en el VPS
 
@@ -229,9 +311,199 @@ Granja/
 
 ---
 
+## �� Configuración del script `deploy.sh`
+
+### 1. Primera vez en el VPS
+
+```bash
+ssh usuario@tu-vps-hostinger
+
+# Instalar dependencias si no las tienes
+sudo apt update
+sudo apt install -y git nodejs npm mysql-client
+
+# Clonar el repositorio
+cd /home/usuario
+git clone https://github.com/TU_USUARIO/Granja.git public_html
+cd public_html
+
+# Editar deploy.sh con tu configuración
+nano deploy.sh
+```
+
+### 2. Variables a editar en `deploy.sh`
+
+```bash
+GIT_REPO="https://github.com/TU_USUARIO/Granja.git"   # Tu repo
+GIT_BRANCH="main"                                       # Tu rama
+APP_DIR="/home/usuario/public_html"                     # Ruta destino
+```
+
+### 3. Hacer ejecutable y probar
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### 4. Futuros despliegues
+
+```bash
+ssh usuario@tu-vps-hostinger
+cd /home/usuario/public_html
+./deploy.sh
+```
+
+---
+
+## �� Despliegue automático con GitHub Actions
+
+Cada `git push` a `main` despliega automáticamente al VPS. Solo necesitas configurar los **Secrets** en GitHub.
+
+### Paso 1 — Generar clave SSH para deploy
+
+**En tu máquina local:**
+
+```bash
+ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/github_deploy
+```
+
+Esto genera:
+- `~/.ssh/github_deploy` (privada — para GitHub)
+- `~/.ssh/github_deploy.pub` (pública — para el VPS)
+
+### Paso 2 — Añadir la clave pública al VPS
+
+```bash
+# Copia la clave pública al VPS
+ssh-copy-id -i ~/.ssh/github_deploy.pub usuario@tu-vps-hostinger
+
+# O manualmente:
+cat ~/.ssh/github_deploy.pub | ssh usuario@tu-vps-hostinger \
+  "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+### Paso 3 — Añadir Secrets en GitHub
+
+Ve a tu repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+| Nombre | Valor |
+|--------|-------|
+| `VPS_HOST` | `tu-vps-hostinger.com` (IP o dominio) |
+| `VPS_USER` | `usuario` (SSH user) |
+| `VPS_PORT` | `22` (opcional, default 22) |
+| `VPS_SSH_KEY` | Contenido de `~/.ssh/github_deploy` (la clave **privada** completa) |
+| `VPS_DOMAIN` | `tu-dominio.com` (sin https://) |
+| `APP_DIR` | `/home/usuario/public_html` |
+
+Para obtener el contenido de la clave privada:
+
+```bash
+cat ~/.ssh/github_deploy
+```
+
+Copia **todo** el output (incluyendo `-----BEGIN...` y `-----END...`).
+
+### Paso 4 — Subir el workflow
+
+```bash
+git add .github/workflows/deploy.yml
+git commit -m "ci: deploy automático al VPS"
+git push origin main
+```
+
+### Paso 5 — Verificar
+
+1. Ve a tu repo → pestaña **Actions**
+2. Verás el workflow "Deploy to Hostinger VPS" corriendo
+3. Cuando termine (1-2 minutos), visita `https://tu-dominio.com/`
+
+### Actualizaciones futuras
+
+```bash
+git add .
+git commit -m "feat: nueva funcionalidad"
+git push origin main
+```
+
+¡Eso es todo! El deploy ocurre automáticamente.
+
+---
+
+## �� Solución de problemas
+
+### El deploy falla por "Permission denied"
+
+```bash
+# En el VPS
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
+
+### API devuelve error 500
+
+```bash
+# Revisa logs de Apache
+sudo tail -f /var/log/apache2/error.log
+
+# Verifica que PHP funciona
+php -v
+
+# Verifica conexión a BD
+mysql -u erp_user -p erp_animal -e "SHOW TABLES;"
+```
+
+### Frontend carga pero no sincroniza con BD
+
+```bash
+# Verifica que api.php responde JSON
+curl https://tu-dominio.com/api.php?action=fetch_all
+
+# Si devuelve HTML, ves el error PHP (puede ser de .htaccess)
+# Asegúrate de que mod_rewrite y mod_headers están activos
+sudo a2enmod rewrite headers
+sudo systemctl restart apache2
+```
+
+---
+
 ## �� Licencia
 
 MIT — Úsalo, modifícalo y mejóralo libremente.
+
+---
+
+## ⚡ Quick Reference
+
+### Desarrollo local
+```bash
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # genera dist/
+npm run preview      # preview del build
+```
+
+### Deploy manual (VPS)
+```bash
+ssh usuario@tu-vps-hostinger
+cd /home/usuario/public_html
+./deploy.sh
+```
+
+### Deploy automático (GitHub Actions)
+```bash
+git push origin main    # �� Se despliega solo
+```
+
+### Backup de la BD
+```bash
+mysqldump -u erp_user -p erp_animal > backup_$(date +%Y%m%d).sql
+```
+
+### Restaurar BD
+```bash
+mysql -u erp_user -p erp_animal < backup_20260803.sql
+```
 
 ---
 

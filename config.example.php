@@ -10,15 +10,16 @@
 //    de Hostinger en lugar de escribir las credenciales aquí.
 // ============================================================
 
-$db_host = getenv('DB_HOST') ?: 'localhost';
-$db_name = getenv('DB_NAME') ?: 'u123456_erp_animal';     // <- Tu nombre de BD
-$db_user = getenv('DB_USER') ?: 'u123456_admin';            // <- Tu usuario
-$db_pass = getenv('DB_PASS') ?: 'tu_password_segura';       // <- Tu password
+$db_host = getenv('DB_HOST') ?: getenv('ERP_DB_HOST') ?: 'localhost';
+$db_port = getenv('DB_PORT') ?: getenv('ERP_DB_PORT') ?: '3306';
+$db_name = getenv('DB_NAME') ?: getenv('ERP_DB_NAME') ?: 'u123456_erp_animal';
+$db_user = getenv('DB_USER') ?: getenv('ERP_DB_USER') ?: 'u123456_admin';
+$db_pass = getenv('DB_PASS') ?: getenv('ERP_DB_PASS') ?: 'tu_password_segura';
 $db_charset = 'utf8mb4';
 
 try {
     $pdo = new PDO(
-        "mysql:host=$db_host;dbname=$db_name;charset=$db_charset",
+        "mysql:host=$db_host;port=$db_port;dbname=$db_name;charset=$db_charset",
         $db_user,
         $db_pass,
         [

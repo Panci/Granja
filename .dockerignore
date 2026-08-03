@@ -1,0 +1,47 @@
+# ============================================================
+# .dockerignore — Excluir del contexto de build
+# ============================================================
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Dependencias (se reinstalan dentro del contenedor)
+node_modules/
+
+# Build local
+dist/
+
+# Archivos de entorno y configuración con secretos
+.env
+.env.local
+config.php
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Trae IDE
+.trae/
+
+# Documentación (no se necesita dentro del contenedor)
+README.md
+
+# Tests
+coverage/
+.nyc_output/
+
+# Cache de Vite
+.vite/

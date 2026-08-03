@@ -1,0 +1,135 @@
+name: Deploy to Hostinger VPS
+
+on:
+  # Disparar en push a la rama main
+  push:
+    branches:
+      - main
+  # Disparar manualmente desde la pestaña Actions
+  workflow_dispatch:
+
+# Evita ejecuciones concurrentes
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: ��️ Checkout código
+        uses: actions/checkout@v4
+
+      - name: �� Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: �� Instalar dependencias
+        run: npm ci
+
+      - name: �� Build de producción
+        run: npm run build
+
+      - name: �� Preparar archivos para subir
+        run: |
+          # Crea un archivo tar.gz con todo el dist
+          cd dist
+          tar -czf ../release.tar.gz .
+          cd ..
+          ls -lh release.tar.gz
+
+      - name: �� Deploy al VPS vía SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "release.tar.gz"
+          target: "/tmp/"
+          strip_components: 0
+
+      - name: �� Reiniciar app en VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            # Backup antes de desplegar
+            BACKUP_DIR="/home/$USER/backups"
+            mkdir -p "$BACKUP_DIR"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            if [ -d "$APP_DIR" ]; then
+              tar -czf "$BACKUP_DIR/granja_pre_deploy_${TIMESTAMP}.tar.gz" \
+                -C "$(dirname "$APP_DIR")" "$(basename "$APP_DIR")" 2>/dev/null || true
+            fi
+
+            # Crea dir destino
+            mkdir -p "$APP_DIR"
+
+            # Extrae archivos
+            tar -xzf /tmp/release.tar.gz -C "$APP_DIR"
+
+            # Permisos
+            chmod -R 755 "$APP_DIR"
+            chmod 640 "$APP_DIR/config.php" 2>/dev/null || true
+            chmod 644 "$APP_DIR/.htaccess" 2>/dev/null || true
+
+            # Limpia tar.gz temporal
+            rm /tmp/release.tar.gz
+
+            # Limpia backups antiguos (mantener 5)
+            cd "$BACKUP_DIR" && ls -t granja_pre_deploy_*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm --
+
+            echo "✅ Deploy completado en $APP_DIR"
+        env:
+          APP_DIR: ${{ secrets.APP_DIR }}
+
+      - name: �� Verificar deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            echo "�� Verificando..."
+
+            # Espera 2s para que el servidor procese
+            sleep 2
+
+            # Test del API
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${VPS_DOMAIN}/api.php?action=fetch_all" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ API responde 200 OK"
+            else
+              echo "⚠️  API responde $HTTP_CODE"
+            fi
+
+            # Test del index
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${VPS_DOMAIN}/" || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Frontend responde 200 OK"
+            else
+              echo "⚠️  Frontend responde $HTTP_CODE"
+            fi
+
+            echo "�� Deploy finalizado"
+        env:
+          VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
+
+      - name: ✨ Notificación final
+        if: success()
+        run: |
+          echo "�� Deploy exitoso!"
+          echo "�� App disponible en: https://${{ secrets.VPS_DOMAIN }}/"

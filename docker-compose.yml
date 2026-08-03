@@ -1,0 +1,90 @@
+# ============================================================
+# docker-compose.yml — Configuración para Dokploy
+# ============================================================
+# Este archivo se usa en Dokploy para levantar la aplicación
+# junto con su base de datos MariaDB.
+#
+# Dokploy detecta este archivo automáticamente cuando se sube
+# desde un repositorio Git.
+# ============================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp-animal-app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      # Variables de entorno que se inyectan en config.php
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-erp_animal}
+      DB_USER: ${DB_USER:-erp_user}
+      DB_PASS: ${DB_PASS:-changeme123}
+      DB_PORT: "3306"
+
+      # Configuración PHP
+      PHP_DISPLAY_ERRORS: "Off"
+      PHP_ERROR_REPORTING: "E_ALL"
+
+      # Zona horaria
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Persistir el config.php entre reinicios
+      - app-config:/var/www/html/config
+      # Logs persistentes
+      - app-logs:/var/log/apache2
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      # Si Dokploy usa Traefik, expone en el puerto 80
+      - "traefik.http.routers.erp-animal.rule=Host(`${APP_DOMAIN:-erp.local}`)"
+      - "traefik.http.routers.erp-animal.entrypoints=websecure"
+      - "traefik.http.routers.erp-animal.tls.certresolver=letsencrypt"
+      - "traefik.http.services.erp-animal.loadbalancer.server.port=80"
+
+  db:
+    image: mariadb:11
+    container_name: erp-animal-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass123}
+      MYSQL_DATABASE: ${DB_NAME:-erp_animal}
+      MYSQL_USER: ${DB_USER:-erp_user}
+      MYSQL_PASSWORD: ${DB_PASS:-changeme123}
+      MARIADB_CHARACTER_SET: utf8mb4
+      MARIADB_COLLATE: utf8mb4_unicode_ci
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # NO exponer el puerto 3306 al exterior
+    expose:
+      - "3306"
+
+volumes:
+  app-config:
+  app-logs:
+  db-data:
+
+networks:
+  erp-network:
+    driver: bridge
