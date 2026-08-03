@@ -23,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # ---------- Etapa 2: Imagen final con nginx + PHP-FPM ----------
-FROM nginx:1.27-alpine
+FROM nginx:1.27-alpine AS production
 
 # Instalar PHP-FPM y extensiones necesarias
 RUN apk add --no-cache \
