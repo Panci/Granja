@@ -1,8 +1,11 @@
 # ============================================================
-# Dockerfile para Dokploy (compatible con Nixpacks)
+# Dockerfile simple para Dokploy
 # ============================================================
-# Usa nginx para servir el frontend estático + PHP-FPM para api.php
-# Esto funciona con Dokploy en modo "Application" (Nixpacks)
+# Sirve el frontend estático con `vite preview` directamente.
+# Esto evita problemas con nginx + permisos + configuración.
+#
+# Dokploy/Traefik espera que el contenedor escuche en el puerto 3000
+# (configurado con la variable de entorno PORT).
 # ============================================================
 
 # ---------- Etapa 1: Build del frontend con Node ----------
@@ -22,44 +25,25 @@ COPY . .
 # Build de producción
 RUN npm run build
 
-# ---------- Etapa 2: Imagen final con nginx + PHP-FPM ----------
-FROM nginx:1.27-alpine AS production
+# ---------- Etapa 2: Imagen final ligera con Node + serve ----------
+FROM node:20-alpine AS production
 
-# Instalar PHP-FPM y extensiones necesarias
-RUN apk add --no-cache \
-    php83 \
-    php83-fpm \
-    php83-pdo \
-    php83-pdo_mysql \
-    php83-mysqli \
-    php83-mbstring \
-    php83-opcache \
-    php83-ctype \
-    php83-fileinfo \
-    curl
+WORKDIR /app
 
-# Crear directorios necesarios
-RUN mkdir -p /var/www/html /run/nginx /var/log/php83 /var/lib/nginx/tmp
+# Instalar 'serve' globalmente para servir archivos estáticos
+RUN npm install -g serve
 
-# Configurar nginx
-COPY docker-nginx.conf /etc/nginx/conf.d/default.conf
+# Copiar solo el build del frontend (más ligero)
+COPY --from=builder /app/dist/ /app/dist/
 
-# Copiar el build del frontend
-COPY --from=builder /app/dist/ /var/www/html/
+# Verificar que existe el index.html
+RUN ls -la /app/dist/
 
-# Asegurar permisos
-RUN chown -R nginx:nginx /var/www/html && \
-    chmod -R 755 /var/www/html
+# Variables de entorno
+ENV HOST=0.0.0.0
+ENV PORT=3000
 
-# Script de inicio
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+EXPOSE 3000
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
-
-EXPOSE 80
-
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
+# Servir el frontend estático en el puerto 3000
+CMD ["sh", "-c", "serve -s /app/dist -l tcp://0.0.0.0:3000"]
