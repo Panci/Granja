@@ -1,15 +1,7 @@
 # ============================================================
-# docker-compose.yml — Para Dokploy con BD gestionada
+# docker-compose.yml — Para Dokploy
 # ============================================================
-# Este compose SOLO incluye la app.
-# La BD (MariaDB) se crea como servicio separado desde Dokploy.
-#
-# Dokploy automáticamente:
-#   - Asigna un hostname al servicio de BD
-#   - Configura Traefik para exponer la app
-#   - Gestiona SSL/TLS
-#
-# Las variables ${...} las inyectas desde el panel de Dokploy.
+# Solo la app. La BD (si la quieres) la agregamos después.
 # ============================================================
 
 services:
@@ -19,26 +11,21 @@ services:
       dockerfile: Dockerfile
     container_name: erp-animal-app
     restart: unless-stopped
-    # Exponer el puerto 80 para que Dokploy/Traefik pueda enrutarlo
-    expose:
-      - "80"
+    # Publicar el puerto para que Traefik/Dokploy lo encuentre
+    ports:
+      - "8080:8080"
     environment:
-      # Conexión a la BD gestionada por Dokploy
-      # El hostname 'db' es el nombre del servicio MariaDB en Dokploy
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_NAME: ${DB_NAME:-erp_animal}
-      DB_USER: ${DB_USER:-erp_user}
-      DB_PASS: ${DB_PASS:-changeme}
-      TZ: ${TZ:-UTC}
+      HOST: 0.0.0.0
+      PORT: 8080
+      TZ: UTC
     networks:
       - erp-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 15s
 
 networks:
   erp-network:
