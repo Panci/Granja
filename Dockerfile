@@ -41,9 +41,9 @@ RUN ls -la /app/dist/
 
 # Variables de entorno
 ENV HOST=0.0.0.0
-ENV PORT=3000
+ENV PORT=8080
 
-EXPOSE 3000
+EXPOSE 8080
 
-# Servir el frontend estático en el puerto 3000
-CMD ["sh", "-c", "serve -s /app/dist -l tcp://0.0.0.0:3000"]
+# Servir el frontend estático en el puerto 8080 (evita conflicto con Dokploy 3000)
+CMD ["sh", "-c", "serve -s /app/dist -l tcp://0.0.0.0:8080"]
