@@ -24,25 +24,32 @@ Aplicación web progresiva (PWA-ready) para gestión de granjas, clínicas y ref
 
 Dokploy es un panel self-hosted similar a Vercel/Netlify pero para VPS. **Esta es la opción más fácil y robusta.**
 
+### ⚠️ Importante: NO uses "Application" (Nixpacks), usa "Compose"
+
+Cuando crees el servicio en Dokploy, **debes seleccionar "Compose"** (no "Application"). Si seleccionas "Application", Dokploy usará Nixpacks que NO soporta PHP.
+
 ### Requisitos
 
 - VPS con Dokploy instalado (https://dokploy.com/)
 - Repositorio Git (GitHub, GitLab, Gitea)
 
-### Paso 1 — Crear el proyecto en Dokploy
+### Opción 1 — Todo en uno (docker-compose.yml)
+
+La forma más simple: app + MariaDB juntos.
+
+#### Paso 1 — Crear el servicio Compose
 
 1. Entra a tu panel de Dokploy (ej. `https://dokploy.tu-dominio.com`)
 2. Click en **Create Project** → nombre: `erp-animal`
-3. Click en **Create Service** → selecciona **Application**
-4. **Source**: GitHub (o GitLab)
+3. Click en **Create Service** → **Compose** (NO Application)
+4. **Source**: GitHub
 5. **Repository**: `https://github.com/TU_USUARIO/Granja.git`
 6. **Branch**: `main`
-7. **Build Path**: `/` (raíz)
-8. **Compose File**: marca "Docker Compose" y selecciona `docker-compose.yml`
+7. **Compose File**: `docker-compose.yml` (por defecto)
 
-### Paso 2 — Variables de entorno
+#### Paso 2 — Variables de entorno
 
-En Dokploy → tu aplicación → **Environment**, añade:
+En Dokploy → tu servicio → **Environment**, añade:
 
 | Variable | Valor |
 |---|---|
@@ -50,38 +57,91 @@ En Dokploy → tu aplicación → **Environment**, añade:
 | `DB_USER` | `erp_user` |
 | `DB_PASS` | `TU_PASSWORD_SEGURA` |
 | `MYSQL_ROOT_PASSWORD` | `OTRA_PASSWORD_SEGURA` |
-| `APP_DOMAIN` | `erp.tu-dominio.com` |
-| `TZ` | `Europe/Madrid` (tu zona) |
+| `TZ` | `Europe/Madrid` |
 
-### Paso 3 — Dominio y SSL
+#### Paso 3 — Dominio y SSL
 
-1. En Dokploy → tu app → **Domains**
-2. Añade tu dominio: `erp.tu-dominio.com`
-3. Marca **Generate SSL** (Let's Encrypt automático)
-4. En tu proveedor DNS, apunta el subdominio a la IP del VPS:
+1. Ve a **Domains**
+2. Añade: `erp.tu-dominio.com`
+3. ✅ Marca **Generate SSL**
+4. Configura DNS:
    ```
-   erp.tu-dominio.com   A   123.456.789.0
+   erp.tu-dominio.com   →   A   →   IP_DE_TU_VPS
    ```
 
-### Paso 4 — Deploy
+#### Paso 4 — Deploy
 
-Click en **Deploy**. Dokploy:
-1. ✅ Clona tu repo de GitHub
-2. ✅ Construye la imagen Docker (Node + PHP)
-3. ✅ Levanta los contenedores (app + MariaDB)
-4. ✅ Configura SSL
-5. ✅ Importa el esquema automáticamente
-6. ✅ Tu app está en `https://erp.tu-dominio.com/`
+Click **Deploy**. Dokploy:
+1. ✅ Clona el repo
+2. ✅ Construye la imagen Docker
+3. ✅ Levanta app + MariaDB
+4. ✅ Importa schema.sql automáticamente
+5. ✅ Configura SSL
+6. ✅ App en `https://erp.tu-dominio.com/`
+
+### Opción 2 — BD gestionada por Dokploy (recomendado para producción)
+
+Esta opción usa la BD gestionada desde el panel de Dokploy, más robusta.
+
+#### Paso 1 — Crear BD en Dokploy
+
+1. Click **Create Service** → **Database** → **MariaDB**
+2. Nombre: `erp-db`
+3. Configura usuario y contraseña
+
+#### Paso 2 — Crear servicio Compose (solo app)
+
+1. **Create Service** → **Compose**
+2. **Source**: GitHub, repo: `https://github.com/TU_USUARIO/Granja.git`
+3. **Compose File**: `docker-compose.standalone.yml`
+
+#### Paso 3 — Variables de entorno
+
+Configura las variables con los datos de tu BD Dokploy:
+
+| Variable | Valor |
+|---|---|
+| `DB_HOST` | (IP del servicio MariaDB) |
+| `DB_PORT` | `3306` |
+| `DB_NAME` | `erp_animal` |
+| `DB_USER` | `erp_user` |
+| `DB_PASS` | `TU_PASSWORD_SEGURA` |
+| `TZ` | `Europe/Madrid` |
+
+**Importante:** `DB_HOST` debe ser la IP interna del contenedor MariaDB. En Dokploy, puedes verla en la sección del servicio de BD.
+
+#### Paso 4 — Importar esquema (primera vez)
+
+Accede al terminal del contenedor MariaDB desde Dokploy y ejecuta:
+
+```bash
+mysql -u root -p
+SOURCE /tmp/schema.sql;
+EXIT;
+```
+
+(O copia el contenido de `schema.sql` al contenedor MariaDB y ejecútalo.)
+
+#### Paso 5 — Dominio y Deploy
+
+Igual que en Opción 1, paso 3 y 4.
 
 ### Actualizaciones futuras
 
-Solo haz `git push` y Dokploy redespliega automáticamente (auto-deploy).
+```bash
+git add .
+git commit -m "feat: ..."
+git push origin main
+```
 
-### Estructura Docker
+Dokploy redespliega automáticamente.
 
-- **`app`**: PHP 8.2 + Apache (imagen custom multi-stage)
-- **`db`**: MariaDB 11 con volumen persistente
-- **Red interna**: ambos servicios se comunican por red Docker
+### Solución al error "No start command could be found"
+
+Si ves este error, significa que Dokploy detectó un `package.json` y usó **Nixpacks en lugar de Docker**. Soluciones:
+
+1. **Borra el servicio y créalo como "Compose"** (no Application)
+2. **O cambia el tipo de build**: en la configuración del servicio, selecciona **Dockerfile** en lugar de Nixpacks
 
 ---
 

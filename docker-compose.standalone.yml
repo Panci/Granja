@@ -1,12 +1,13 @@
 # ============================================================
-# docker-compose.yml — Configuración principal para Dokploy
+# docker-compose.yml — Solo la app (BD gestionada por Dokploy)
 # ============================================================
-# Este archivo incluye app + MariaDB en el mismo stack.
-# Dokploy detecta automáticamente docker-compose.yml en el repo.
+# Usa este archivo si quieres que Dokploy gestione la BD como
+# servicio separado. La BD se crea desde el panel de Dokploy.
 #
-# Alternativas:
-#   - BD gestionada por Dokploy: usar docker-compose.standalone.yml
-#     y crear BD desde el panel
+# Para Dokploy:
+#   1. Crear servicio "Compose" con este archivo
+#   2. Crear servicio "Database" (MariaDB) desde el panel
+#   3. Conectar ambos por red
 # ============================================================
 
 services:
@@ -18,15 +19,14 @@ services:
     restart: unless-stopped
     environment:
       # Variables inyectadas en config.php por docker-entrypoint.sh
-      DB_HOST: db
-      DB_PORT: "3306"
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-erp_animal}
       DB_USER: ${DB_USER:-erp_user}
-      DB_PASS: ${DB_PASS:-changeme123}
+      DB_PASS: ${DB_PASS:-changeme}
       TZ: ${TZ:-UTC}
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     networks:
       - erp-network
     healthcheck:
@@ -34,19 +34,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
 
   db:
     image: mariadb:11
     container_name: erp-animal-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass123}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
       MYSQL_DATABASE: ${DB_NAME:-erp_animal}
       MYSQL_USER: ${DB_USER:-erp_user}
-      MYSQL_PASSWORD: ${DB_PASS:-changeme123}
-      MARIADB_CHARACTER_SET: utf8mb4
-      MARIADB_COLLATE: utf8mb4_unicode_ci
+      MYSQL_PASSWORD: ${DB_PASS:-changeme}
     volumes:
       - db-data:/var/lib/mysql
     networks:
@@ -56,7 +53,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
 
 volumes:
   db-data:
