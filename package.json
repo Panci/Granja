@@ -6,8 +6,9 @@
     "dev": "vite",
     "clean": "node -e \"import('fs').then(fs => { fs.rmSync('dist', { recursive: true, force: true }); fs.mkdirSync('dist', { recursive: true }); })\"",
     "build": "npm run clean && vite build",
-    "preview": "vite preview",
-    "start": "echo 'This project uses Docker. Run: docker compose up' && exit 0"
+    "preview": "vite preview --host 0.0.0.0 --port ${PORT:-3000}",
+    "start": "vite preview --host 0.0.0.0 --port ${PORT:-3000}",
+    "serve": "npx --yes serve dist -l ${PORT:-3000}"
   },
   "devDependencies": {
     "vite": "^6.3.0"

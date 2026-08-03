@@ -27,15 +27,10 @@ export default defineConfig({
   },
   plugins: [
     {
-      name: 'copy-backend',
+      name: 'copy-assets',
       closeBundle() {
-        // Copia los archivos del backend PHP al dist final
-        copyFile(resolve(__dirname, 'api.php'), resolve(__dirname, 'dist/api.php'));
-        copyFile(resolve(__dirname, 'config.php'), resolve(__dirname, 'dist/config.php'));
-        copyFile(resolve(__dirname, 'config.example.php'), resolve(__dirname, 'dist/config.example.php'));
-        copyFile(resolve(__dirname, 'schema.sql'), resolve(__dirname, 'dist/schema.sql'));
+        // Solo copia assets adicionales (no PHP ya que usamos Nixpacks/Static)
         copyFile(resolve(__dirname, '.htaccess'), resolve(__dirname, 'dist/.htaccess'));
-        copyFile(resolve(__dirname, 'README.md'), resolve(__dirname, 'dist/README.md'));
       }
     }
   ]
