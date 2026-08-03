@@ -30,5 +30,5 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-# CMD simple sin healthcheck (wget puede no estar disponible)
-CMD ["sh", "-c", "node node_modules/serve/build/main.js -s /app/dist -l tcp://0.0.0.0:8080"]
+# CMD simple usando npx serve (más confiable)
+CMD ["npx", "serve", "-s", "/app/dist", "-l", "tcp://0.0.0.0:8080", "--no-clipboard"]
