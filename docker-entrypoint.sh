@@ -68,7 +68,7 @@ fi
 
 # ---------- 3. Esperar a que MySQL esté disponible ----------
 echo "⏳ Esperando a MySQL..."
-MAX_TRIES=30
+MAX_TRIES=15
 TRIES=0
 DB_HOST=${DB_HOST:-localhost}
 DB_USER=${DB_USER:-root}
@@ -76,30 +76,34 @@ DB_PASS=${DB_PASS:-}
 
 # Sólo intentar conectar si MySQL no es localhost (es decir, es un servicio aparte)
 if [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then
-    until mysqladmin ping -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" --connect-timeout=5 2>/dev/null; do
+    until mysqladmin ping -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" --connect-timeout=3 2>/dev/null; do
         TRIES=$((TRIES + 1))
         if [ $TRIES -ge $MAX_TRIES ]; then
-            echo "❌ No se pudo conectar a MySQL después de $MAX_TRIES intentos"
-            exit 1
+            echo "⚠️  No se pudo conectar a MySQL después de $MAX_TRIES intentos"
+            echo "⚠️  Continuando de todas formas — la app seguirá funcionando con localStorage"
+            break
         fi
         echo "  Intento $TRIES/$MAX_TRIES..."
         sleep 2
     done
-    echo "✅ MySQL disponible en $DB_HOST"
 
-    # Importar schema si la tabla 'animals' no existe
-    DB_NAME=${DB_NAME:-erp_animal}
-    echo "📦 Verificando esquema en $DB_NAME..."
-    if ! mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SHOW TABLES LIKE 'animals';" 2>/dev/null | grep -q "animals"; then
-        if [ -f /var/www/html/schema.sql ]; then
-            echo "↻ Importando schema.sql..."
-            mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < /var/www/html/schema.sql
-            echo "✅ Esquema importado"
+    if [ $TRIES -lt $MAX_TRIES ]; then
+        echo "✅ MySQL disponible en $DB_HOST"
+
+        # Importar schema si la tabla 'animals' no existe
+        DB_NAME=${DB_NAME:-erp_animal}
+        echo "📦 Verificando esquema en $DB_NAME..."
+        if ! mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SHOW TABLES LIKE 'animals';" 2>/dev/null | grep -q "animals"; then
+            if [ -f /var/www/html/schema.sql ]; then
+                echo "↻ Importando schema.sql..."
+                mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < /var/www/html/schema.sql
+                echo "✅ Esquema importado"
+            else
+                echo "⚠️  schema.sql no encontrado"
+            fi
         else
-            echo "⚠️  schema.sql no encontrado"
+            echo "✅ Tabla 'animals' ya existe"
         fi
-    else
-        echo "✅ Tabla 'animals' ya existe"
     fi
 else
     echo "ℹ️  DB_HOST=localhost, asumiendo MySQL local (no se importará schema automáticamente)"

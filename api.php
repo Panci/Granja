@@ -39,6 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Load database configuration
 require_once __DIR__ . '/config.php';
 
+// Si la BD no está disponible, responder con éxito (modo offline)
+if (!isset($pdo) || $pdo === null) {
+    sendJson(["success" => true, "data" => [], "offline" => true]);
+}
+
 // --- Cache de columnas permitidas por tabla ---
 // Genera la whitelist de columnas desde el esquema de la BD.
 // Excluye columnas de sistema (created_at, updated_at) para evitar

@@ -1,12 +1,15 @@
 # ============================================================
-# docker-compose.yml — Configuración principal para Dokploy
+# docker-compose.yml — Para Dokploy con BD gestionada
 # ============================================================
-# Este archivo incluye app + MariaDB en el mismo stack.
-# Dokploy detecta automáticamente docker-compose.yml en el repo.
+# Este compose SOLO incluye la app.
+# La BD (MariaDB) se crea como servicio separado desde Dokploy.
 #
-# Alternativas:
-#   - BD gestionada por Dokploy: usar docker-compose.standalone.yml
-#     y crear BD desde el panel
+# Dokploy automáticamente:
+#   - Asigna un hostname al servicio de BD
+#   - Configura Traefik para exponer la app
+#   - Gestiona SSL/TLS
+#
+# Las variables ${...} las inyectas desde el panel de Dokploy.
 # ============================================================
 
 services:
@@ -16,17 +19,18 @@ services:
       dockerfile: Dockerfile
     container_name: erp-animal-app
     restart: unless-stopped
+    # Exponer el puerto 80 para que Dokploy/Traefik pueda enrutarlo
+    expose:
+      - "80"
     environment:
-      # Variables inyectadas en config.php por docker-entrypoint.sh
-      DB_HOST: db
-      DB_PORT: "3306"
+      # Conexión a la BD gestionada por Dokploy
+      # El hostname 'db' es el nombre del servicio MariaDB en Dokploy
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-erp_animal}
       DB_USER: ${DB_USER:-erp_user}
-      DB_PASS: ${DB_PASS:-changeme123}
+      DB_PASS: ${DB_PASS:-changeme}
       TZ: ${TZ:-UTC}
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - erp-network
     healthcheck:
@@ -34,32 +38,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
-
-  db:
-    image: mariadb:11
-    container_name: erp-animal-db
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass123}
-      MYSQL_DATABASE: ${DB_NAME:-erp_animal}
-      MYSQL_USER: ${DB_USER:-erp_user}
-      MYSQL_PASSWORD: ${DB_PASS:-changeme123}
-      MARIADB_CHARACTER_SET: utf8mb4
-      MARIADB_COLLATE: utf8mb4_unicode_ci
-    volumes:
-      - db-data:/var/lib/mysql
-    networks:
-      - erp-network
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-volumes:
-  db-data:
+      start_period: 40s
 
 networks:
   erp-network:

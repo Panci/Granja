@@ -30,5 +30,10 @@ try {
     );
 } catch (\PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
-    sendJson(["success" => false, "error" => "Error de conexión con la base de datos"], 500);
+    // No matamos el proceso — la app debe poder servir el HTML
+    // y funcionar con localStorage cuando no hay BD
+    if (function_exists('sendJson')) {
+        sendJson(["success" => false, "error" => "Error de conexión con la base de datos", "offline" => true], 500);
+    }
+    $pdo = null;
 }
