@@ -4,7 +4,8 @@
   "description": "ERP Animal — Sistema de Gestión Veterinaria y Cuidado Animal",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "clean": "node -e \"import('fs').then(fs => { fs.rmSync('dist', { recursive: true, force: true }); fs.mkdirSync('dist', { recursive: true }); })\"",
+    "build": "npm run clean && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {

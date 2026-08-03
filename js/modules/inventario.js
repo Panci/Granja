@@ -6,9 +6,11 @@
 window.Inventario = (() => {
 
   let currentFilter = { especie: '', estado: '' };
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
 
   function render() {
-    const animals = getFilteredAnimals();
     const allAnimals = Store.getAll('animals');
     const species = Helpers.getSpecies();
 
@@ -19,6 +21,14 @@ window.Inventario = (() => {
     }).join('');
 
     const totalActive = allAnimals.filter(a => a.estado === 'Activo').length;
+
+    // Filtrado + búsqueda + paginación
+    let animals = getFilteredAnimals();
+    animals = Helpers.applySearch(animals, searchTerm, ['nombre', 'id', 'raza', 'especie']);
+    const totalPages = Math.max(1, Math.ceil(animals.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = animals.slice(startIdx, startIdx + PAGE_SIZE);
 
     return `
       <div class="module-header">
@@ -42,6 +52,7 @@ window.Inventario = (() => {
         <div class="card-header">
           <h2 class="card-title">Listado de Animales</h2>
           <div class="filter-bar">
+            ${Helpers.renderSearchBox('�� Buscar por nombre, ID, raza...', 'inventarioSearch')}
             <select class="form-input form-input-sm" id="filterEspecie" onchange="Inventario.setFilter('especie', this.value)">
               <option value="">Todas las especies</option>
               ${species.map(sp => `<option value="${sp.nombre}" ${currentFilter.especie === sp.nombre ? 'selected' : ''}>${sp.icono} ${sp.nombre}</option>`).join('')}
@@ -58,23 +69,24 @@ window.Inventario = (() => {
           ${Helpers.renderTable(
             [
               { label: 'ID', key: 'id' },
-              { label: 'Nombre', render: r => `<strong>${r.nombre}</strong>` },
-              { label: 'Especie', render: r => `${Helpers.speciesIcon(r.especie)} ${r.especie}` },
+              { label: 'Nombre', render: r => `<strong>${Helpers.escapeHtml(r.nombre)}</strong>` },
+              { label: 'Especie', render: r => `${Helpers.speciesIcon(r.especie)} ${Helpers.escapeHtml(r.especie)}` },
               { label: 'Raza', key: 'raza' },
               { label: 'Sexo', render: r => r.sexo === 'Macho' ? '♂️ Macho' : '♀️ Hembra' },
               { label: 'Edad', render: r => Helpers.calcAge(r.fechaNacimiento) },
               { label: 'Estado', render: r => Helpers.estadoBadge(r.estado) },
             ],
-            animals,
+            pageRows,
             {
-              emptyIcon: '🐾',
-              emptyText: 'No hay animales registrados. ¡Añade el primero!',
+              emptyIcon: '��',
+              emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay animales registrados. ¡Añade el primero!',
               actions: row => `
                 <button class="btn-icon-action" title="Editar" onclick="Inventario.openForm('${row.id}')">✏️</button>
-                <button class="btn-icon-action" title="Eliminar" onclick="Inventario.confirmDelete('${row.id}')">🗑️</button>
+                <button class="btn-icon-action" title="Eliminar" onclick="Inventario.confirmDelete('${row.id}')">��️</button>
               `,
             }
           )}
+          ${Helpers.renderPagination(currentPage, totalPages, 'Inventario.goToPage')}
         </div>
       </div>
     `;
@@ -90,6 +102,18 @@ window.Inventario = (() => {
 
   function setFilter(key, value) {
     currentFilter[key] = value;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
     App.refreshModule();
   }
 
@@ -102,7 +126,7 @@ window.Inventario = (() => {
       <form id="animalForm" class="form-grid">
         <div class="form-group">
           <label class="form-label">Nombre *</label>
-          <input class="form-input" id="f_nombre" value="${animal ? animal.nombre : ''}" required placeholder="Ej: Luna">
+          <input class="form-input" id="f_nombre" value="${animal ? Helpers.escapeHtml(animal.nombre) : ''}" required placeholder="Ej: Luna">
         </div>
         <div class="form-group">
           <label class="form-label">Especie *</label>
@@ -110,7 +134,7 @@ window.Inventario = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">Raza</label>
-          <input class="form-input" id="f_raza" value="${animal ? (animal.raza || '') : ''}" placeholder="Ej: Pastor Alemán">
+          <input class="form-input" id="f_raza" value="${animal ? Helpers.escapeHtml(animal.raza || '') : ''}" placeholder="Ej: Pastor Alemán">
         </div>
         <div class="form-group">
           <label class="form-label">Sexo *</label>
@@ -133,7 +157,7 @@ window.Inventario = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Notas</label>
-          <textarea class="form-input form-textarea" id="f_notas" rows="2" placeholder="Observaciones...">${animal ? (animal.notas || '') : ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_notas" rows="2" placeholder="Observaciones...">${animal ? Helpers.escapeHtml(animal.notas || '') : ''}</textarea>
         </div>
       </form>
     `;
@@ -170,10 +194,10 @@ window.Inventario = (() => {
   function confirmDelete(id) {
     const animal = Store.getById('animals', id);
     Helpers.confirmDialog(
-      `¿Eliminar a <strong>${animal.nombre}</strong> (${animal.id}) del inventario?`,
+      `¿Eliminar a <strong>${Helpers.escapeHtml(animal.nombre)}</strong> (${Helpers.escapeHtml(animal.id)}) del inventario?`,
       () => {
         Store.remove('animals', id);
-        Helpers.showToast(`${animal.nombre} eliminado`, 'warning');
+        Helpers.showToast(`${Helpers.escapeHtml(animal.nombre)} eliminado`, 'warning');
         App.refreshModule();
       }
     );
@@ -224,5 +248,5 @@ window.Inventario = (() => {
     });
   }
 
-  return { render, setFilter, openForm, confirmDelete, openSpeciesForm };
+  return { render, setFilter, setSearch, goToPage, openForm, confirmDelete, openSpeciesForm };
 })();

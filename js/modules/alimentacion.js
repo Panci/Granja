@@ -6,6 +6,9 @@
 window.Alimentacion = (() => {
 
   let currentTab = 'dietas';
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
 
   function render() {
     const tabs = [
@@ -35,6 +38,10 @@ window.Alimentacion = (() => {
       </div>
 
       <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">${currentTab === 'dietas' ? '�� Dietas' : '�� Tareas'}</h2>
+          ${currentTab === 'dietas' ? `<div class="filter-bar">${Helpers.renderSearchBox('�� Buscar por tipo, animal, grupo...', 'alimentacionSearch')}</div>` : ''}
+        </div>
         <div class="card-body">
           ${currentTab === 'dietas' ? _renderDietas() : _renderTareas()}
         </div>
@@ -45,28 +52,44 @@ window.Alimentacion = (() => {
   // ---- Dietas ----
 
   function _renderDietas() {
-    const dietas = Store.getAll('dietas');
+    let dietas = Store.getAll('dietas');
+    dietas = Helpers.applySearch(dietas, searchTerm, r => [
+      r.tipoPienso,
+      r.frecuencia,
+      r.notas,
+      r.grupo,
+      _getAnimalName(r.animalId),
+    ]);
+    const totalPages = Math.max(1, Math.ceil(dietas.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = dietas.slice(startIdx, startIdx + PAGE_SIZE);
 
     return Helpers.renderTable([
       {
         label: 'Grupo / Animal', render: r => {
-          if (r.grupo) return `${Helpers.speciesIcon(r.grupo)} ${r.grupo} (Grupo)`;
+          if (r.grupo) return `${Helpers.speciesIcon(r.grupo)} ${Helpers.escapeHtml(r.grupo)} (Grupo)`;
           const a = Store.getById('animals', r.animalId);
-          return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId;
+          return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : Helpers.escapeHtml(r.animalId);
         }
       },
       { label: 'Tipo de Comida', key: 'tipoPienso' },
       { label: 'Cantidad', render: r => `${r.cantidad || '—'} ${r.unidad || ''}` },
       { label: 'Frecuencia', key: 'frecuencia' },
       { label: 'Notas', key: 'notas' },
-    ], dietas, {
+    ], pageRows, {
       emptyIcon: '🥣',
-      emptyText: 'No hay dietas configuradas',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay dietas configuradas',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Alimentacion.openDietForm('${row.id}')">✏️</button>
         <button class="btn-icon-action" title="Eliminar" onclick="Alimentacion.confirmDelete('dietas','${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Alimentacion.goToPage');
+  }
+
+  function _getAnimalName(id) {
+    const a = Store.getById('animals', id);
+    return a ? a.nombre : id;
   }
 
   // ---- Tareas ----
@@ -105,11 +128,11 @@ window.Alimentacion = (() => {
             <span class="task-check-inner"></span>
           </button>
           <div class="task-content">
-            <div class="task-title">${t.titulo}</div>
-            ${t.descripcion ? `<div class="task-desc">${t.descripcion}</div>` : ''}
+            <div class="task-title">${Helpers.escapeHtml(t.titulo)}</div>
+            ${t.descripcion ? `<div class="task-desc">${Helpers.escapeHtml(t.descripcion)}</div>` : ''}
             <div class="task-meta">
-              ${t.grupo ? `<span class="task-tag">${Helpers.speciesIcon(t.grupo)} ${t.grupo}</span>` : ''}
-              ${t.frecuencia ? `<span class="task-tag">🔄 ${t.frecuencia}</span>` : ''}
+              ${t.grupo ? `<span class="task-tag">${Helpers.speciesIcon(t.grupo)} ${Helpers.escapeHtml(t.grupo)}</span>` : ''}
+              ${t.frecuencia ? `<span class="task-tag">🔄 ${Helpers.escapeHtml(t.frecuencia)}</span>` : ''}
               ${t.proximaEjecucion ? `<span class="task-tag ${days < 0 ? 'task-tag-danger' : days === 0 ? 'task-tag-warning' : ''}">📅 ${Helpers.formatDate(t.proximaEjecucion)}${days !== null ? ` (${days === 0 ? 'Hoy' : days < 0 ? Math.abs(days) + 'd atrás' : days + 'd'})` : ''}</span>` : ''}
             </div>
           </div>
@@ -132,9 +155,9 @@ window.Alimentacion = (() => {
               <span class="task-check-inner">✓</span>
             </button>
             <div class="task-content">
-              <div class="task-title">${t.titulo}</div>
+              <div class="task-title">${Helpers.escapeHtml(t.titulo)}</div>
             </div>
-            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas','${t.id}')">🗑️</button>
+            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas','${t.id}')">��️</button>
           </div>
         `;
       });
@@ -176,11 +199,11 @@ window.Alimentacion = (() => {
         </div>
         <div class="form-group">
           <label class="form-label">Tipo de Comida *</label>
-          <input class="form-input" id="f_tipoPienso" value="${existing?.tipoPienso || ''}" placeholder="Ej: Pienso Royal Canin, Semillas...">
+          <input class="form-input" id="f_tipoPienso" value="${existing ? Helpers.escapeHtml(existing.tipoPienso) : ''}" placeholder="Ej: Pienso Royal Canin, Semillas...">
         </div>
         <div class="form-group">
           <label class="form-label">Cantidad</label>
-          <input class="form-input" id="f_cantidad" value="${existing?.cantidad || ''}" placeholder="Ej: 200">
+          <input class="form-input" id="f_cantidad" value="${existing ? Helpers.escapeHtml(existing.cantidad) : ''}" placeholder="Ej: 200">
         </div>
         <div class="form-group">
           <label class="form-label">Unidad</label>
@@ -202,7 +225,7 @@ window.Alimentacion = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Notas</label>
-          <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing?.notas || ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing ? Helpers.escapeHtml(existing.notas) : ''}</textarea>
         </div>
       </form>
     `;
@@ -243,11 +266,11 @@ window.Alimentacion = (() => {
       <form class="form-grid" id="taskForm">
         <div class="form-group form-full">
           <label class="form-label">Título *</label>
-          <input class="form-input" id="f_titulo" value="${existing?.titulo || ''}" placeholder="Ej: Limpiar gallinero">
+          <input class="form-input" id="f_titulo" value="${existing ? Helpers.escapeHtml(existing.titulo) : ''}" placeholder="Ej: Limpiar gallinero">
         </div>
         <div class="form-group form-full">
           <label class="form-label">Descripción</label>
-          <textarea class="form-input form-textarea" id="f_descripcion" rows="2">${existing?.descripcion || ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_descripcion" rows="2">${existing ? Helpers.escapeHtml(existing.descripcion) : ''}</textarea>
         </div>
         <div class="form-group">
           <label class="form-label">Grupo (Especie)</label>
@@ -339,8 +362,20 @@ window.Alimentacion = (() => {
 
   function setTab(tab) {
     currentTab = tab;
+    currentPage = 1;
     App.refreshModule();
   }
 
-  return { render, openForm, openDietForm, openTaskForm, toggleTask, uncompleteTask, confirmDelete, setTab };
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
+    App.refreshModule();
+  }
+
+  return { render, openForm, openDietForm, openTaskForm, toggleTask, uncompleteTask, confirmDelete, setTab, setSearch, goToPage };
 })();

@@ -6,6 +6,9 @@
 window.Produccion = (() => {
 
   let viewPeriod = 'semanal';
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
 
   function render() {
     const registros = Store.getAll('produccion');
@@ -70,7 +73,10 @@ window.Produccion = (() => {
       <!-- History table -->
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title">📋 Historial</h2>
+          <h2 class="card-title">�� Historial</h2>
+          <div class="filter-bar">
+            ${Helpers.renderSearchBox('�� Buscar por fecha, tipo, notas...', 'produccionSearch')}
+          </div>
         </div>
         <div class="card-body">
           ${_renderHistory(registros)}
@@ -107,21 +113,26 @@ window.Produccion = (() => {
   }
 
   function _renderHistory(registros) {
-    const sorted = [...registros].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    let sorted = [...registros].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    sorted = Helpers.applySearch(sorted, searchTerm, ['fecha', 'tipo', 'notas']);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = sorted.slice(startIdx, startIdx + PAGE_SIZE);
 
     return Helpers.renderTable([
       { label: 'Fecha', render: r => Helpers.formatDate(r.fecha) },
       { label: 'Cantidad', render: r => `<strong class="production-count">${r.cantidad}</strong> 🥚` },
       { label: 'Tipo', render: r => r.tipo || 'Huevos' },
       { label: 'Notas', key: 'notas' },
-    ], sorted.slice(0, 50), {
+    ], pageRows, {
       emptyIcon: '🥚',
-      emptyText: 'No hay registros de producción',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay registros de producción',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Produccion.openForm('${row.id}')">✏️</button>
         <button class="btn-icon-action" title="Eliminar" onclick="Produccion.confirmDelete('${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Produccion.goToPage');
   }
 
   // ---- Quick register ----
@@ -184,7 +195,7 @@ window.Produccion = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Notas</label>
-          <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing?.notas || ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing ? Helpers.escapeHtml(existing.notas) : ''}</textarea>
         </div>
       </form>
     `;
@@ -234,5 +245,16 @@ window.Produccion = (() => {
     App.refreshModule();
   }
 
-  return { render, quickAdjust, quickSet, openForm, confirmDelete, setViewPeriod };
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
+    App.refreshModule();
+  }
+
+  return { render, quickAdjust, quickSet, openForm, confirmDelete, setViewPeriod, setSearch, goToPage };
 })();

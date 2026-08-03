@@ -1,3 +1,6 @@
+// Vite procesa CSS como import nativo
+import './css/styles.css';
+
 import './js/store.js';
 import './js/utils/helpers.js';
 import './js/utils/charts.js';

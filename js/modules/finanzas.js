@@ -10,6 +10,9 @@ window.Finanzas = (() => {
   let filterMonth = null; // null = current month
   let filterGrupo = '';
   let filterCategoria = '';
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
 
   function render() {
     const { year, month } = filterMonth || Helpers.currentMonth();
@@ -76,6 +79,7 @@ window.Finanzas = (() => {
         <div class="card-header">
           <h2 class="card-title">📋 Detalle de Gastos</h2>
           <div class="filter-bar">
+            ${Helpers.renderSearchBox('�� Buscar por descripción, categoría...', 'finanzasSearch')}
             <input type="month" class="form-input form-input-sm" value="${year}-${String(month + 1).padStart(2, '0')}" onchange="Finanzas.setMonth(this.value)">
             <select class="form-input form-input-sm" onchange="Finanzas.setFilter('grupo', this.value)">
               <option value="">Todos los grupos</option>
@@ -112,22 +116,27 @@ window.Finanzas = (() => {
   }
 
   function _renderTable(gastos) {
-    const sorted = [...gastos].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    let sorted = [...gastos].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    sorted = Helpers.applySearch(sorted, searchTerm, ['descripcion', 'categoria', 'grupo']);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = sorted.slice(startIdx, startIdx + PAGE_SIZE);
 
     return Helpers.renderTable([
       { label: 'Fecha', render: r => Helpers.formatDate(r.fecha) },
-      { label: 'Grupo', render: r => r.grupo ? `${Helpers.speciesIcon(r.grupo)} ${r.grupo}` : '🏠 General' },
+      { label: 'Grupo', render: r => r.grupo ? `${Helpers.speciesIcon(r.grupo)} ${Helpers.escapeHtml(r.grupo)}` : '�� General' },
       { label: 'Categoría', render: r => Helpers.badge(r.categoria, _catColor(r.categoria)) },
       { label: 'Descripción', key: 'descripcion' },
       { label: 'Monto', render: r => `<strong class="money-value">${Helpers.formatMoney(r.monto)}</strong>` },
-    ], sorted, {
-      emptyIcon: '💰',
-      emptyText: 'No hay gastos registrados en este periodo',
+    ], pageRows, {
+      emptyIcon: '��',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay gastos registrados en este periodo',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Finanzas.openForm('${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Finanzas.confirmDelete('${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Finanzas.confirmDelete('${row.id}')">��️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Finanzas.goToPage');
   }
 
   function _catColor(cat) {
@@ -171,7 +180,7 @@ window.Finanzas = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Descripción</label>
-          <input class="form-input" id="f_descripcion" value="${existing?.descripcion || ''}" placeholder="Ej: Saco de pienso 15kg">
+          <input class="form-input" id="f_descripcion" value="${existing ? Helpers.escapeHtml(existing.descripcion) : ''}" placeholder="Ej: Saco de pienso 15kg">
         </div>
       </form>
     `;
@@ -216,14 +225,27 @@ window.Finanzas = (() => {
     } else {
       filterMonth = null;
     }
+    currentPage = 1;
     App.refreshModule();
   }
 
   function setFilter(key, val) {
     if (key === 'grupo') filterGrupo = val;
     if (key === 'categoria') filterCategoria = val;
+    currentPage = 1;
     App.refreshModule();
   }
 
-  return { render, openForm, confirmDelete, setMonth, setFilter };
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
+    App.refreshModule();
+  }
+
+  return { render, openForm, confirmDelete, setMonth, setFilter, setSearch, goToPage };
 })();

@@ -39,6 +39,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Load database configuration
 require_once __DIR__ . '/config.php';
 
+// --- Cache de columnas permitidas por tabla ---
+// Genera la whitelist de columnas desde el esquema de la BD.
+// Excluye columnas de sistema (created_at, updated_at) para evitar
+// que el cliente las envíe en INSERT/UPDATE.
+$_COLUMN_CACHE = [];
+function getAllowedColumns($pdo, $table) {
+    global $_COLUMN_CACHE;
+    if (isset($_COLUMN_CACHE[$table])) return $_COLUMN_CACHE[$table];
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table`");
+    $stmt->execute();
+    $internal = ['created_at', 'updated_at'];
+    $cols = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if (!in_array($row['Field'], $internal, true)) {
+            $cols[] = $row['Field'];
+        }
+    }
+    $_COLUMN_CACHE[$table] = $cols;
+    return $cols;
+}
+
 $action = $_GET['action'] ?? '';
 $collection = $_GET['collection'] ?? '';
 
@@ -92,16 +113,21 @@ if ($action === 'import') {
         // Insertar datos importados
         foreach ($valid_collections as $col) {
             if (isset($input[$col]) && is_array($input[$col])) {
+                $allowed = getAllowedColumns($pdo, $col);
                 foreach ($input[$col] as $item) {
-                    $keys = array_keys($item);
+                    $keys = array_values(array_intersect(array_keys($item), $allowed));
+                    if (empty($keys)) continue;
                     $cols = implode(", ", array_map(function($k) { return "`$k`"; }, $keys));
                     $placeholders = implode(", ", array_map(function($k) { return ":$k"; }, $keys));
-                    
+
                     $stmt = $pdo->prepare("INSERT INTO `$col` ($cols) VALUES ($placeholders)");
-                    
-                    foreach ($item as $k => $v) {
+
+                    foreach ($keys as $k) {
+                        $v = $item[$k] ?? null;
                         if (is_bool($v)) {
                             $stmt->bindValue(":$k", $v ? 1 : 0, PDO::PARAM_INT);
+                        } elseif ($v === null) {
+                            $stmt->bindValue(":$k", null, PDO::PARAM_NULL);
                         } else {
                             $stmt->bindValue(":$k", $v);
                         }
@@ -136,25 +162,32 @@ if ($action === 'create') {
     }
 
     try {
-        $keys = array_keys($input);
+        // Whitelist de columnas permitidas (defensa frente a columnas internas)
+        $allowed_columns = getAllowedColumns($pdo, $collection);
+        $keys = array_values(array_intersect(array_keys($input), $allowed_columns));
+        if (empty($keys)) {
+            sendJson(["success" => false, "error" => "No hay columnas válidas para insertar"], 400);
+        }
         $cols = implode(", ", array_map(function($k) { return "`$k`"; }, $keys));
         $placeholders = implode(", ", array_map(function($k) { return ":$k"; }, $keys));
-        
+
         $sql = "INSERT INTO `$collection` ($cols) VALUES ($placeholders)";
         $stmt = $pdo->prepare($sql);
-        
+
         // Bind values cleanly
-        foreach ($input as $key => $val) {
-            // Convert booleans to 1/0 for MySQL TINYINT
+        foreach ($keys as $key) {
+            $val = $input[$key] ?? null;
             if (is_bool($val)) {
                 $stmt->bindValue(":$key", $val ? 1 : 0, PDO::PARAM_INT);
+            } elseif ($val === null) {
+                $stmt->bindValue(":$key", null, PDO::PARAM_NULL);
             } else {
                 $stmt->bindValue(":$key", $val);
             }
         }
-        
+
         $stmt->execute();
-        
+
         sendJson(["success" => true]);
     } catch (\Exception $e) {
         sendJson(["success" => false, "error" => "Error al insertar registro: " . $e->getMessage()], 500);
@@ -170,32 +203,41 @@ if ($action === 'update') {
     try {
         $id = $input['id'];
         unset($input['id']); // Don't update the ID column
-        
-        if (empty($input)) {
+
+        // Whitelist de columnas permitidas
+        $allowed_columns = getAllowedColumns($pdo, $collection);
+        $filtered = [];
+        foreach ($input as $k => $v) {
+            if (in_array($k, $allowed_columns, true)) {
+                $filtered[$k] = $v;
+            }
+        }
+        if (empty($filtered)) {
             sendJson(["success" => true, "message" => "Nada que actualizar"]);
         }
 
         $sets = [];
-        foreach (array_keys($input) as $key) {
+        foreach (array_keys($filtered) as $key) {
             $sets[] = "`$key` = :$key";
         }
         $sets_str = implode(", ", $sets);
-        
+
         $sql = "UPDATE `$collection` SET $sets_str WHERE `id` = :__id";
         $stmt = $pdo->prepare($sql);
-        
-        // Bind values
-        foreach ($input as $key => $val) {
+
+        foreach ($filtered as $key => $val) {
             if (is_bool($val)) {
                 $stmt->bindValue(":$key", $val ? 1 : 0, PDO::PARAM_INT);
+            } elseif ($val === null) {
+                $stmt->bindValue(":$key", null, PDO::PARAM_NULL);
             } else {
                 $stmt->bindValue(":$key", $val);
             }
         }
         $stmt->bindValue(":__id", $id);
-        
+
         $stmt->execute();
-        
+
         sendJson(["success" => true]);
     } catch (\Exception $e) {
         sendJson(["success" => false, "error" => "Error al actualizar registro: " . $e->getMessage()], 500);

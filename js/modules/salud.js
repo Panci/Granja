@@ -7,6 +7,9 @@ window.Salud = (() => {
 
   let currentTab = 'vacunas';
   let filterAnimal = '';
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
 
   function render() {
     const tabs = [
@@ -45,8 +48,8 @@ window.Salud = (() => {
         <div class="card-header">
           <h2 class="card-title">${tabs.find(t => t.key === currentTab).label}</h2>
           <div class="filter-bar">
+            ${Helpers.renderSearchBox('�� Buscar por tipo, producto, medicamento...', 'saludSearch')}
             ${Helpers.animalSelect(filterAnimal, 'filterAnimalSalud', { placeholder: 'Todos los animales' })}
-            <script>document.getElementById('filterAnimalSalud').onchange=function(){Salud.setFilterAnimal(this.value)}</script>
           </div>
         </div>
         <div class="card-body">
@@ -61,43 +64,7 @@ window.Salud = (() => {
   // ---- Alerts Panel ----
 
   function _renderAlerts() {
-    const now = new Date();
-    const alerts = [];
-
-    // Overdue or upcoming vaccines
-    Store.getAll('vacunas').forEach(v => {
-      if (!v.proximaDosis) return;
-      const days = Helpers.daysUntil(v.proximaDosis);
-      const animal = Store.getById('animals', v.animalId);
-      const name = animal ? animal.nombre : v.animalId;
-      if (days !== null && days < 0) {
-        alerts.push({ type: 'danger', icon: '💉', text: `${name}: Vacuna "${v.tipo}" vencida hace ${Math.abs(days)} días` });
-      } else if (days !== null && days <= 7) {
-        alerts.push({ type: 'warning', icon: '💉', text: `${name}: Vacuna "${v.tipo}" en ${days} día${days !== 1 ? 's' : ''}` });
-      }
-    });
-
-    // Overdue deworming
-    Store.getAll('desparasitaciones').forEach(d => {
-      if (!d.proximaAplicacion) return;
-      const days = Helpers.daysUntil(d.proximaAplicacion);
-      const animal = Store.getById('animals', d.animalId);
-      const name = animal ? animal.nombre : d.animalId;
-      if (days !== null && days < 0) {
-        alerts.push({ type: 'danger', icon: '🧴', text: `${name}: Desparasitación vencida hace ${Math.abs(days)} días` });
-      } else if (days !== null && days <= 7) {
-        alerts.push({ type: 'warning', icon: '🧴', text: `${name}: Desparasitación en ${days} día${days !== 1 ? 's' : ''}` });
-      }
-    });
-
-    // Active treatments
-    Store.getAll('tratamientos').forEach(t => {
-      if (t.estado !== 'Activo') return;
-      const animal = Store.getById('animals', t.animalId);
-      const name = animal ? animal.nombre : t.animalId;
-      alerts.push({ type: 'info', icon: '💊', text: `${name}: Tratamiento activo — ${t.medicamento}` });
-    });
-
+    const alerts = Helpers.getHealthAlerts();
     if (alerts.length === 0) return '';
 
     return `<div class="alerts-panel">
@@ -117,9 +84,16 @@ window.Salud = (() => {
     let items = Store.getAll('vacunas');
     if (filterAnimal) items = items.filter(v => v.animalId === filterAnimal);
     items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    items = Helpers.applySearch(items, searchTerm, r => [
+      r.tipo,
+      r.lote,
+      r.notas,
+      _getAnimalName(r.animalId),
+    ]);
+    const { rows, totalPages } = _paginate(items);
 
     return Helpers.renderTable([
-      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId; }},
+      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : Helpers.escapeHtml(r.animalId); }},
       { label: 'Fecha', render: r => Helpers.formatDate(r.fecha) },
       { label: 'Vacuna', key: 'tipo' },
       { label: 'Lote', key: 'lote' },
@@ -132,14 +106,14 @@ window.Salud = (() => {
         return dateStr;
       }},
       { label: 'Notas', key: 'notas' },
-    ], items, {
+    ], rows, {
       emptyIcon: '💉',
-      emptyText: 'No hay vacunas registradas',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay vacunas registradas',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('vacunas','${row.id}')">✏️</button>
         <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('vacunas','${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
   }
 
   // ---- Desparasitaciones ----
@@ -148,9 +122,16 @@ window.Salud = (() => {
     let items = Store.getAll('desparasitaciones');
     if (filterAnimal) items = items.filter(d => d.animalId === filterAnimal);
     items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    items = Helpers.applySearch(items, searchTerm, r => [
+      r.producto,
+      r.tipoIntExt,
+      r.notas,
+      _getAnimalName(r.animalId),
+    ]);
+    const { rows, totalPages } = _paginate(items);
 
     return Helpers.renderTable([
-      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId; }},
+      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : Helpers.escapeHtml(r.animalId); }},
       { label: 'Fecha', render: r => Helpers.formatDate(r.fecha) },
       { label: 'Tipo', render: r => Helpers.badge(r.tipoIntExt, r.tipoIntExt === 'Interna' ? 'info' : 'warning') },
       { label: 'Producto', key: 'producto' },
@@ -162,14 +143,14 @@ window.Salud = (() => {
         if (days <= 7) return Helpers.badge(`${dateStr} (${days}d)`, 'warning');
         return dateStr;
       }},
-    ], items, {
+    ], rows, {
       emptyIcon: '🧴',
-      emptyText: 'No hay desparasitaciones registradas',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay desparasitaciones registradas',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('desparasitaciones','${row.id}')">✏️</button>
         <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('desparasitaciones','${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
   }
 
   // ---- Tratamientos ----
@@ -178,24 +159,46 @@ window.Salud = (() => {
     let items = Store.getAll('tratamientos');
     if (filterAnimal) items = items.filter(t => t.animalId === filterAnimal);
     items.sort((a, b) => new Date(b.fechaInicio) - new Date(a.fechaInicio));
+    items = Helpers.applySearch(items, searchTerm, r => [
+      r.tipo,
+      r.medicamento,
+      r.dosis,
+      r.estado,
+      _getAnimalName(r.animalId),
+    ]);
+    const { rows, totalPages } = _paginate(items);
 
     return Helpers.renderTable([
-      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.animalId; }},
+      { label: 'Animal', render: r => { const a = Store.getById('animals', r.animalId); return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : Helpers.escapeHtml(r.animalId); }},
       { label: 'Inicio', render: r => Helpers.formatDate(r.fechaInicio) },
       { label: 'Fin', render: r => Helpers.formatDate(r.fechaFin) },
       { label: 'Tipo', key: 'tipo' },
       { label: 'Medicamento', key: 'medicamento' },
       { label: 'Dosis', key: 'dosis' },
       { label: 'Estado', render: r => Helpers.estadoBadge(r.estado) },
-    ], items, {
+    ], rows, {
       emptyIcon: '💊',
-      emptyText: 'No hay tratamientos registrados',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay tratamientos registrados',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('tratamientos','${row.id}')">✏️</button>
         ${row.estado === 'Activo' ? `<button class="btn-icon-action" title="Completar" onclick="Salud.completeTreatment('${row.id}')">✅</button>` : ''}
         <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('tratamientos','${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
+  }
+
+  // ---- Helpers internos ----
+
+  function _getAnimalName(id) {
+    const a = Store.getById('animals', id);
+    return a ? a.nombre : id;
+  }
+
+  function _paginate(items) {
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    return { rows: items.slice(startIdx, startIdx + PAGE_SIZE), totalPages };
   }
 
   // ---- Form ----
@@ -222,11 +225,11 @@ window.Salud = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Tipo de Vacuna *</label>
-            <input class="form-input" id="f_tipo" value="${existing?.tipo || ''}" placeholder="Ej: Rabia, Parvovirus..." required>
+            <input class="form-input" id="f_tipo" value="${existing ? Helpers.escapeHtml(existing.tipo) : ''}" placeholder="Ej: Rabia, Parvovirus..." required>
           </div>
           <div class="form-group">
             <label class="form-label">Lote</label>
-            <input class="form-input" id="f_lote" value="${existing?.lote || ''}" placeholder="Nº de lote">
+            <input class="form-input" id="f_lote" value="${existing ? Helpers.escapeHtml(existing.lote) : ''}" placeholder="Nº de lote">
           </div>
           <div class="form-group">
             <label class="form-label">Próxima Dosis</label>
@@ -234,7 +237,7 @@ window.Salud = (() => {
           </div>
           <div class="form-group form-full">
             <label class="form-label">Notas</label>
-            <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing?.notas || ''}</textarea>
+            <textarea class="form-input form-textarea" id="f_notas" rows="2">${existing ? Helpers.escapeHtml(existing.notas) : ''}</textarea>
           </div>
         </form>
       `;
@@ -259,7 +262,7 @@ window.Salud = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Producto *</label>
-            <input class="form-input" id="f_producto" value="${existing?.producto || ''}" placeholder="Ej: Frontline, Milbemax..." required>
+            <input class="form-input" id="f_producto" value="${existing ? Helpers.escapeHtml(existing.producto) : ''}" placeholder="Ej: Frontline, Milbemax..." required>
           </div>
           <div class="form-group">
             <label class="form-label">Próxima Aplicación</label>
@@ -289,15 +292,15 @@ window.Salud = (() => {
           </div>
           <div class="form-group">
             <label class="form-label">Tipo *</label>
-            <input class="form-input" id="f_tipo" value="${existing?.tipo || ''}" placeholder="Ej: Antibiótico, Antiinflamatorio...">
+            <input class="form-input" id="f_tipo" value="${existing ? Helpers.escapeHtml(existing.tipo) : ''}" placeholder="Ej: Antibiótico, Antiinflamatorio...">
           </div>
           <div class="form-group">
             <label class="form-label">Medicamento *</label>
-            <input class="form-input" id="f_medicamento" value="${existing?.medicamento || ''}" placeholder="Nombre del medicamento">
+            <input class="form-input" id="f_medicamento" value="${existing ? Helpers.escapeHtml(existing.medicamento) : ''}" placeholder="Nombre del medicamento">
           </div>
           <div class="form-group">
             <label class="form-label">Dosis</label>
-            <input class="form-input" id="f_dosis" value="${existing?.dosis || ''}" placeholder="Ej: 1 comprimido/12h">
+            <input class="form-input" id="f_dosis" value="${existing ? Helpers.escapeHtml(existing.dosis) : ''}" placeholder="Ej: 1 comprimido/12h">
           </div>
           <div class="form-group">
             <label class="form-label">Estado</label>
@@ -371,13 +374,26 @@ window.Salud = (() => {
 
   function setTab(tab) {
     currentTab = tab;
+    currentPage = 1;
     App.refreshModule();
   }
 
   function setFilterAnimal(val) {
     filterAnimal = val;
+    currentPage = 1;
     App.refreshModule();
   }
 
-  return { render, openForm, confirmDelete, setTab, setFilterAnimal, completeTreatment };
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
+    App.refreshModule();
+  }
+
+  return { render, openForm, confirmDelete, setTab, setFilterAnimal, setSearch, goToPage, completeTreatment };
 })();

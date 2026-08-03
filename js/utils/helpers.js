@@ -94,7 +94,14 @@ window.Helpers = (() => {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
-    toast.innerHTML = `<span class="toast-icon">${icons[type] || '📋'}</span><span class="toast-msg">${message}</span>`;
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'toast-icon';
+    iconSpan.textContent = icons[type] || '📋';
+    const msgSpan = document.createElement('span');
+    msgSpan.className = 'toast-msg';
+    msgSpan.textContent = message;
+    toast.appendChild(iconSpan);
+    toast.appendChild(msgSpan);
     toastContainer.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('toast-show'));
     setTimeout(() => {
@@ -156,7 +163,12 @@ window.Helpers = (() => {
   }
 
   function confirmDialog(message, onConfirm) {
-    openModal('Confirmar', `<p style="text-align:center;padding:1rem 0;">${message}</p>`, {
+    const body = document.createElement('p');
+    body.style.cssText = 'text-align:center;padding:1rem 0;';
+    body.innerHTML = message; // Asume mensaje controlado por el módulo (negritas, etc.)
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(body);
+    openModal('Confirmar', wrapper.innerHTML, {
       submitText: 'Confirmar',
       onSubmit: () => { onConfirm(); return true; }
     });
@@ -168,19 +180,19 @@ window.Helpers = (() => {
     if (rows.length === 0) {
       return `<div class="empty-state">
         <div class="empty-state-icon">${options.emptyIcon || '📋'}</div>
-        <p class="empty-state-text">${options.emptyText || 'No hay registros aún'}</p>
+        <p class="empty-state-text">${escapeHtml(options.emptyText || 'No hay registros aún')}</p>
       </div>`;
     }
     let html = '<div class="table-wrapper"><table class="data-table"><thead><tr>';
     columns.forEach(col => {
-      html += `<th>${col.label}</th>`;
+      html += `<th>${escapeHtml(col.label)}</th>`;
     });
     if (options.actions) html += '<th class="th-actions">Acciones</th>';
     html += '</tr></thead><tbody>';
     rows.forEach(row => {
       html += '<tr class="table-row-enter">';
       columns.forEach(col => {
-        const val = col.render ? col.render(row) : (row[col.key] || '—');
+        const val = col.render ? col.render(row) : (row[col.key] !== undefined && row[col.key] !== null ? escapeHtml(String(row[col.key])) : '—');
         html += `<td>${val}</td>`;
       });
       if (options.actions) {
@@ -202,7 +214,7 @@ window.Helpers = (() => {
       info: 'badge-info',
       neutral: 'badge-neutral',
     };
-    return `<span class="badge ${colors[type] || 'badge-neutral'}">${text}</span>`;
+    return `<span class="badge ${colors[type] || 'badge-neutral'}">${escapeHtml(text)}</span>`;
   }
 
   function estadoBadge(estado) {
@@ -257,6 +269,82 @@ window.Helpers = (() => {
     return html;
   }
 
+  // ---- Search & Pagination ----
+
+  // Renderiza una barra de búsqueda que delega al controlador del módulo.
+  // El módulo expone un getter `getSearch` para definir qué campos se buscan.
+  function renderSearchBox(placeholder, searchInputId = 'tableSearch') {
+    return `<input type="search" class="form-input form-input-sm" id="${searchInputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off">`;
+  }
+
+  // Aplica búsqueda en una lista de objetos sobre un conjunto de campos.
+  function applySearch(rows, term, fields) {
+    if (!term) return rows;
+    const t = term.toLowerCase();
+    return rows.filter(r => {
+      return fields.some(f => {
+        const v = typeof f === 'function' ? f(r) : r[f];
+        return v !== undefined && v !== null && String(v).toLowerCase().includes(t);
+      });
+    });
+  }
+
+  // Renderiza controles de paginación. Devuelve '' si sólo hay una página.
+  function renderPagination(currentPage, totalPages, onChange) {
+    if (totalPages <= 1) return '';
+    const prevDisabled = currentPage <= 1 ? 'disabled' : '';
+    const nextDisabled = currentPage >= totalPages ? 'disabled' : '';
+    const window = 2;
+    const start = Math.max(1, currentPage - window);
+    const end = Math.min(totalPages, currentPage + window);
+    let pages = '';
+    for (let i = start; i <= end; i++) {
+      pages += `<button class="page-btn ${i === currentPage ? 'page-active' : ''}" data-page="${i}">${i}</button>`;
+    }
+    const safe = (e) => `App.handlePageClick(this, '${onChange}')`;
+    return `<div class="pagination">
+      <button class="page-btn" ${prevDisabled} data-page="${currentPage - 1}">‹</button>
+      ${pages}
+      <button class="page-btn" ${nextDisabled} data-page="${currentPage + 1}">›</button>
+      <span class="page-info">${currentPage} / ${totalPages}</span>
+    </div>`;
+  }
+
+  // ---- Health alerts (compartido entre dashboard y módulo Salud) ----
+
+  function getHealthAlerts() {
+    const alerts = [];
+    Store.getAll('vacunas').forEach(v => {
+      if (!v.proximaDosis) return;
+      const days = daysUntil(v.proximaDosis);
+      const animal = Store.getById('animals', v.animalId);
+      const name = animal ? escapeHtml(animal.nombre) : escapeHtml(v.animalId);
+      if (days !== null && days < 0) {
+        alerts.push({ type: 'danger', icon: '��', text: `${name}: Vacuna "${escapeHtml(v.tipo)}" vencida hace ${Math.abs(days)} días` });
+      } else if (days !== null && days <= 7) {
+        alerts.push({ type: 'warning', icon: '��', text: `${name}: Vacuna "${escapeHtml(v.tipo)}" en ${days} día${days !== 1 ? 's' : ''}` });
+      }
+    });
+    Store.getAll('desparasitaciones').forEach(d => {
+      if (!d.proximaAplicacion) return;
+      const days = daysUntil(d.proximaAplicacion);
+      const animal = Store.getById('animals', d.animalId);
+      const name = animal ? escapeHtml(animal.nombre) : escapeHtml(d.animalId);
+      if (days !== null && days < 0) {
+        alerts.push({ type: 'danger', icon: '��', text: `${name}: Desparasitación vencida hace ${Math.abs(days)} días` });
+      } else if (days !== null && days <= 7) {
+        alerts.push({ type: 'warning', icon: '��', text: `${name}: Desparasitación en ${days} día${days !== 1 ? 's' : ''}` });
+      }
+    });
+    Store.getAll('tratamientos').forEach(t => {
+      if (t.estado !== 'Activo') return;
+      const animal = Store.getById('animals', t.animalId);
+      const name = animal ? escapeHtml(animal.nombre) : escapeHtml(t.animalId);
+      alerts.push({ type: 'info', icon: '��', text: `${name}: Tratamiento activo — ${escapeHtml(t.medicamento)}` });
+    });
+    return alerts;
+  }
+
   // ---- Misc ----
 
   function escapeHtml(str) {
@@ -297,5 +385,9 @@ window.Helpers = (() => {
     escapeHtml,
     monthName,
     currentMonth,
+    getHealthAlerts,
+    renderSearchBox,
+    applySearch,
+    renderPagination,
   };
 })();

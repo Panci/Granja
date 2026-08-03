@@ -5,6 +5,10 @@
 
 window.Reproduccion = (() => {
 
+  let searchTerm = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
+
   function render() {
     const registros = Store.getAll('reproduccion');
     const enGestacion = registros.filter(r => r.estado === 'En gestación');
@@ -27,6 +31,9 @@ window.Reproduccion = (() => {
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Historial de Reproducción</h2>
+          <div class="filter-bar">
+            ${Helpers.renderSearchBox('�� Buscar por ID, hembra, macho, notas...', 'reproduccionSearch')}
+          </div>
         </div>
         <div class="card-body">
           ${_renderTable(registros)}
@@ -40,8 +47,8 @@ window.Reproduccion = (() => {
     gestaciones.forEach(g => {
       const hembra = Store.getById('animals', g.hembra);
       const macho = Store.getById('animals', g.macho);
-      const hembraName = hembra ? hembra.nombre : g.hembra;
-      const machoName = macho ? macho.nombre : (g.macho || '—');
+      const hembraName = hembra ? Helpers.escapeHtml(hembra.nombre) : Helpers.escapeHtml(g.hembra);
+      const machoName = macho ? Helpers.escapeHtml(macho.nombre) : (g.macho ? Helpers.escapeHtml(g.macho) : '—');
 
       const now = new Date();
       const start = new Date(g.fechaMonta);
@@ -82,12 +89,23 @@ window.Reproduccion = (() => {
   }
 
   function _renderTable(registros) {
-    const sorted = [...registros].sort((a, b) => new Date(b.fechaMonta) - new Date(a.fechaMonta));
+    let sorted = [...registros].sort((a, b) => new Date(b.fechaMonta) - new Date(a.fechaMonta));
+    sorted = Helpers.applySearch(sorted, searchTerm, r => [
+      r.id,
+      _getAnimalName(r.hembra),
+      _getAnimalName(r.macho),
+      r.notasParto,
+      r.estado,
+    ]);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = sorted.slice(startIdx, startIdx + PAGE_SIZE);
 
     return Helpers.renderTable([
       { label: 'ID', key: 'id' },
-      { label: 'Hembra', render: r => { const a = Store.getById('animals', r.hembra); return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : r.hembra; }},
-      { label: 'Macho', render: r => { const a = Store.getById('animals', r.macho); return a ? `${Helpers.speciesIcon(a.especie)} ${a.nombre}` : (r.macho || '—'); }},
+      { label: 'Hembra', render: r => { const a = Store.getById('animals', r.hembra); return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : Helpers.escapeHtml(r.hembra); }},
+      { label: 'Macho', render: r => { const a = Store.getById('animals', r.macho); return a ? `${Helpers.speciesIcon(a.especie)} ${Helpers.escapeHtml(a.nombre)}` : (r.macho ? Helpers.escapeHtml(r.macho) : '—'); }},
       { label: 'Fecha Monta', render: r => Helpers.formatDate(r.fechaMonta) },
       { label: 'Parto Est.', render: r => Helpers.formatDate(r.fechaEstimadaParto) },
       { label: 'Estado', render: r => Helpers.estadoBadge(r.estado) },
@@ -97,14 +115,19 @@ window.Reproduccion = (() => {
         if (r.exito === false) return Helpers.badge('No', 'danger');
         return '—';
       }},
-    ], sorted, {
+    ], pageRows, {
       emptyIcon: '🐣',
-      emptyText: 'No hay registros de reproducción',
+      emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay registros de reproducción',
       actions: row => `
         <button class="btn-icon-action" title="Editar" onclick="Reproduccion.openForm('${row.id}')">✏️</button>
         <button class="btn-icon-action" title="Eliminar" onclick="Reproduccion.confirmDelete('${row.id}')">🗑️</button>
       `,
-    });
+    }) + Helpers.renderPagination(currentPage, totalPages, 'Reproduccion.goToPage');
+  }
+
+  function _getAnimalName(id) {
+    const a = Store.getById('animals', id);
+    return a ? a.nombre : id;
   }
 
   function openForm(id) {
@@ -145,7 +168,7 @@ window.Reproduccion = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Notas del Parto</label>
-          <textarea class="form-input form-textarea" id="f_notasParto" rows="2">${existing?.notasParto || ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_notasParto" rows="2">${existing ? Helpers.escapeHtml(existing.notasParto) : ''}</textarea>
         </div>
       </form>
     `;
@@ -214,7 +237,7 @@ window.Reproduccion = (() => {
         </div>
         <div class="form-group form-full">
           <label class="form-label">Notas del Parto</label>
-          <textarea class="form-input form-textarea" id="f_notasParto" rows="3" placeholder="Detalles del parto...">${reg?.notasParto || ''}</textarea>
+          <textarea class="form-input form-textarea" id="f_notasParto" rows="3" placeholder="Detalles del parto...">${reg ? Helpers.escapeHtml(reg.notasParto) : ''}</textarea>
         </div>
       </form>
     `;
@@ -244,5 +267,16 @@ window.Reproduccion = (() => {
     });
   }
 
-  return { render, openForm, registerBirth, confirmDelete };
+  function setSearch(term) {
+    searchTerm = term;
+    currentPage = 1;
+    App.refreshModule();
+  }
+
+  function goToPage(page) {
+    currentPage = Math.max(1, page);
+    App.refreshModule();
+  }
+
+  return { render, openForm, registerBirth, confirmDelete, setSearch, goToPage };
 })();

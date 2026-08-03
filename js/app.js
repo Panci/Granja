@@ -114,6 +114,88 @@ window.App = (() => {
       case 'finanzas': html = Finanzas.render(); break;
     }
     main.innerHTML = html;
+
+    // Vincula listeners delegados tras inyectar HTML
+    _bindDelegatedListeners();
+  }
+
+  // ---- Tablas de mapeo (declaradas antes de los listeners para evitar TDZ) ----
+  const _SEARCH_HANDLERS = {
+    inventarioSearch: (v) => Inventario.setSearch(v),
+    saludSearch: (v) => Salud.setSearch(v),
+    finanzasSearch: (v) => Finanzas.setSearch(v),
+    reproduccionSearch: (v) => Reproduccion.setSearch(v),
+    produccionSearch: (v) => Produccion.setSearch(v),
+    alimentacionSearch: (v) => Alimentacion.setSearch(v),
+  };
+
+  const _PAGINATION_HANDLERS = [
+    { id: '#inventarioSearch', fn: (p) => Inventario.goToPage(p) },
+    { id: '#saludSearch', fn: (p) => Salud.goToPage(p) },
+    { id: '#finanzasSearch', fn: (p) => Finanzas.goToPage(p) },
+    { id: '#reproduccionSearch', fn: (p) => Reproduccion.goToPage(p) },
+    { id: '#produccionSearch', fn: (p) => Produccion.goToPage(p) },
+    { id: '#alimentacionSearch', fn: (p) => Alimentacion.goToPage(p) },
+  ];
+
+  // ---- Event delegation ----
+  // Reemplaza bloques script inline y enlaces onclick dispersos en el HTML
+  // generado. Permite CSP estricta y un único punto de mantenimiento.
+  function _bindDelegatedListeners() {
+    const main = document.getElementById('mainContent');
+    if (!main || main.__delegated) return;
+    main.__delegated = true;
+
+    main.addEventListener('change', (e) => {
+      const t = e.target;
+      if (!t) return;
+      if (t.id === 'filterAnimalSalud') {
+        Salud.setFilterAnimal(t.value);
+      }
+    });
+
+    // Debounced input para búsqueda en tablas
+    let searchTimer = null;
+    main.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t) return;
+      const handler = _SEARCH_HANDLERS[t.id];
+      if (handler) {
+        clearTimeout(searchTimer);
+        const value = t.value;
+        searchTimer = setTimeout(() => handler(value), 200);
+      }
+    });
+
+    // Paginación
+    main.addEventListener('click', (e) => {
+      const btn = e.target.closest('.page-btn');
+      if (!btn || btn.disabled) return;
+      const page = parseInt(btn.dataset.page, 10);
+      if (isNaN(page)) return;
+      const card = btn.closest('.card');
+      if (!card) return;
+      const handler = _PAGINATION_HANDLERS.find(h => card.querySelector(h.id));
+      if (handler) handler.fn(page);
+    });
+  }
+
+  // Handler global para paginación (compatibilidad con onclick inline)
+  function handlePageClick(btn, callback) {
+    if (btn.disabled) return;
+    const page = parseInt(btn.dataset.page, 10);
+    if (isNaN(page)) return;
+    const [scope, fn] = callback.split('.');
+    if (window[scope] && typeof window[scope][fn] === 'function') {
+      window[scope][fn](page);
+    }
+  }
+
+  // Restablece el flag de delegación tras reconstruir el shell
+  // (por ejemplo, después de importar datos).
+  function _resetDelegatedFlag() {
+    const main = document.getElementById('mainContent');
+    if (main) main.__delegated = false;
   }
 
   // ---- Dashboard ----
@@ -201,11 +283,12 @@ window.App = (() => {
       <div class="alerts-panel">
         <h3 class="alerts-title">⚡ Atención Requerida</h3>
         ${healthAlerts.map(a => `<div class="alert alert-${a.type}"><span class="alert-icon">${a.icon}</span><span class="alert-text">${a.text}</span></div>`).join('')}
-        ${overdueTasks.map(t => `<div class="alert alert-warning"><span class="alert-icon">📋</span><span class="alert-text">Tarea pendiente: ${t.titulo}</span></div>`).join('')}
+        ${overdueTasks.map(t => `<div class="alert alert-warning"><span class="alert-icon">��</span><span class="alert-text">Tarea pendiente: ${Helpers.escapeHtml(t.titulo)}</span></div>`).join('')}
         ${gestaciones.map(g => {
           const h = Store.getById('animals', g.hembra);
           const days = Helpers.daysUntil(g.fechaEstimadaParto);
-          return `<div class="alert alert-info"><span class="alert-icon">🐣</span><span class="alert-text">${h ? h.nombre : g.hembra}: Parto estimado en ${days > 0 ? days + ' días' : days === 0 ? '¡Hoy!' : Math.abs(days) + ' días atrás'}</span></div>`;
+          const hembraName = h ? Helpers.escapeHtml(h.nombre) : Helpers.escapeHtml(g.hembra);
+          return `<div class="alert alert-info"><span class="alert-icon">��</span><span class="alert-text">${hembraName}: Parto estimado en ${days > 0 ? days + ' días' : days === 0 ? '¡Hoy!' : Math.abs(days) + ' días atrás'}</span></div>`;
         }).join('')}
       </div>` : ''}
 
@@ -233,11 +316,11 @@ window.App = (() => {
         <div class="card-body">
           ${Helpers.renderTable([
             { label: 'ID', key: 'id' },
-            { label: 'Nombre', render: r => `<strong>${r.nombre}</strong>` },
-            { label: 'Especie', render: r => `${Helpers.speciesIcon(r.especie)} ${r.especie}` },
+            { label: 'Nombre', render: r => `<strong>${Helpers.escapeHtml(r.nombre)}</strong>` },
+            { label: 'Especie', render: r => `${Helpers.speciesIcon(r.especie)} ${Helpers.escapeHtml(r.especie)}` },
             { label: 'Estado', render: r => Helpers.estadoBadge(r.estado) },
             { label: 'Edad', render: r => Helpers.calcAge(r.fechaNacimiento) },
-          ], recentAnimals, { emptyIcon: '🐾', emptyText: 'No hay animales registrados' })}
+          ], recentAnimals, { emptyIcon: '\u{1F43E}', emptyText: 'No hay animales registrados' })}
         </div>
       </div>` : `
       <div class="card">
@@ -254,36 +337,7 @@ window.App = (() => {
   }
 
   function _getHealthAlerts() {
-    const alerts = [];
-    Store.getAll('vacunas').forEach(v => {
-      if (!v.proximaDosis) return;
-      const days = Helpers.daysUntil(v.proximaDosis);
-      const animal = Store.getById('animals', v.animalId);
-      const name = animal ? animal.nombre : v.animalId;
-      if (days !== null && days < 0) {
-        alerts.push({ type: 'danger', icon: '💉', text: `${name}: Vacuna "${v.tipo}" vencida hace ${Math.abs(days)} días` });
-      } else if (days !== null && days <= 7) {
-        alerts.push({ type: 'warning', icon: '💉', text: `${name}: Vacuna "${v.tipo}" en ${days} día${days !== 1 ? 's' : ''}` });
-      }
-    });
-    Store.getAll('desparasitaciones').forEach(d => {
-      if (!d.proximaAplicacion) return;
-      const days = Helpers.daysUntil(d.proximaAplicacion);
-      const animal = Store.getById('animals', d.animalId);
-      const name = animal ? animal.nombre : d.animalId;
-      if (days !== null && days < 0) {
-        alerts.push({ type: 'danger', icon: '🧴', text: `${name}: Desparasitación vencida hace ${Math.abs(days)} días` });
-      } else if (days !== null && days <= 7) {
-        alerts.push({ type: 'warning', icon: '🧴', text: `${name}: Desparasitación en ${days} día${days !== 1 ? 's' : ''}` });
-      }
-    });
-    Store.getAll('tratamientos').forEach(t => {
-      if (t.estado !== 'Activo') return;
-      const animal = Store.getById('animals', t.animalId);
-      const name = animal ? animal.nombre : t.animalId;
-      alerts.push({ type: 'info', icon: '💊', text: `${name}: Tratamiento activo — ${t.medicamento}` });
-    });
-    return alerts;
+    return Helpers.getHealthAlerts();
   }
 
   // ---- Sidebar toggle ----
@@ -327,6 +381,7 @@ window.App = (() => {
         if (success) {
           Helpers.showToast('Datos importados correctamente', 'success');
           _renderShell();
+          _resetDelegatedFlag();
           navigateTo(currentModule);
           _bindSidebarToggle();
         } else {
@@ -338,7 +393,7 @@ window.App = (() => {
     input.click();
   }
 
-  return { init, navigateTo, refreshModule, exportData, importData };
+  return { init, navigateTo, refreshModule, exportData, importData, handlePageClick };
 })();
 
 // ---- Boot ----
