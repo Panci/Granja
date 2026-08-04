@@ -19,7 +19,7 @@ RUN npm run build && \
 # ---------- Etapa 2: Imagen final con nginx + PHP-FPM ----------
 FROM nginx:1.27-alpine AS production
 
-# Instalar PHP-FPM y extensiones
+# Instalar PHP-FPM, extensiones y cliente MySQL
 RUN apk add --no-cache \
     php83 \
     php83-fpm \
@@ -31,7 +31,10 @@ RUN apk add --no-cache \
     php83-ctype \
     php83-fileinfo \
     curl \
-    bash
+    bash \
+    mysql-client \
+    ncurses \
+    mariadb-client
 
 # Crear directorios necesarios
 RUN mkdir -p /var/www/html /run/nginx /var/log/php83 /var/lib/nginx/tmp /var/lib/nginx/logs /docker-entrypoint-init.d
