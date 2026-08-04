@@ -93,6 +93,10 @@ RUN printf '%s\n' \
     '# Esperar a MySQL' \
     'if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then' \
     '    echo "⏳ Esperando a MySQL en $DB_HOST:3306..."' \
+    '    echo "🔍 Probando resolución DNS de $DB_HOST..."' \
+    '    php -r "echo gethostbyname(\x27$DB_HOST\x27) . PHP_EOL;" 2>&1 || echo "  (gethostbyname falló)"' \
+    '    echo "🔍 Probando fsockopen..."' \
+    '    php -r "\$fp = @fsockopen(\x27$DB_HOST\x27, 3306, \$errno, \$errstr, 3); if (!\$fp) { echo \x27Error: \x27 . \$errno . \x27 - \x27 . \$errstr . PHP_EOL; } else { echo \x27Conectado!\x27 . PHP_EOL; fclose(\$fp); }"' \
     '    MYSQL_OK=0' \
     '    for i in 1 2 3 4 5 6 7 8 9 10; do' \
     '        if php -r "exit(@fsockopen(getenv(\x27DB_HOST\x27),3306,\$e,\$er,3) ? 1 : 0);" 2>/dev/null; then' \
