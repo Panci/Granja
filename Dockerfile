@@ -36,7 +36,9 @@ RUN apk add --no-cache \
     ncurses \
     mariadb-client \
     busybox-extras \
-    netcat-openbsd
+    netcat-openbsd \
+    coreutils \
+    util-linux
 
 # Crear directorios necesarios
 RUN mkdir -p /var/www/html /run/nginx /var/log/php83 /var/lib/nginx/tmp /var/lib/nginx/logs /docker-entrypoint-init.d
@@ -104,14 +106,22 @@ RUN printf '%s\n' \
     '    done' \
     '    if [ "$MYSQL_OK" = "1" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then' \
     '        DB_NAME_FINAL=${DB_NAME:-erp_animal}' \
+    '        export MYSQL_PWD="$DB_PASS"' \
     '        echo "📋 Verificando si la tabla animals existe..."' \
-    '        TABLE_EXISTS=$(mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" -N -e "SHOW TABLES LIKE \x27animals\x27;" "$DB_NAME_FINAL" 2>/dev/null)' \
-    '        if [ -n "$TABLE_EXISTS" ]; then' \
+    '        TABLE_EXISTS=$(timeout 10 mysql -h"$DB_HOST" -u"$DB_USER" -N -e "SHOW TABLES LIKE \x27animals\x27;" "$DB_NAME_FINAL" 2>&1)' \
+    '        TABLE_EXIT=$?' \
+    '        echo "   Resultado: \x27$TABLE_EXISTS\x27 (exit code: $TABLE_EXIT)"' \
+    '        if [ $TABLE_EXIT -ne 0 ]; then' \
+    '            echo "⚠️  Error al consultar tabla (exit $TABLE_EXIT) - continuando..."' \
+    '            unset MYSQL_PWD' \
+    '        elif echo "$TABLE_EXISTS" | grep -q "animals"; then' \
     '            echo "✅ Tabla animals ya existe"' \
+    '            unset MYSQL_PWD' \
     '        elif [ -f /var/www/html/schema.sql ]; then' \
     '            echo "📦 Importando schema.sql en $DB_NAME_FINAL..."' \
-    '            mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" < /var/www/html/schema.sql' \
+    '            timeout 30 mysql -h"$DB_HOST" -u"$DB_USER" "$DB_NAME_FINAL" < /var/www/html/schema.sql' \
     '            IMPORT_RESULT=$?' \
+    '            unset MYSQL_PWD' \
     '            if [ "$IMPORT_RESULT" -eq 0 ]; then' \
     '                echo "✅ Schema importado correctamente"' \
     '            else' \
@@ -119,6 +129,7 @@ RUN printf '%s\n' \
     '            fi' \
     '        else' \
     '            echo "⚠️  schema.sql no encontrado"' \
+    '            unset MYSQL_PWD' \
     '        fi' \
     '    else' \
     '        echo "⚠️  MySQL no disponible o credenciales faltantes - continuando..."' \
