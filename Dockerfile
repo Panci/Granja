@@ -93,18 +93,14 @@ RUN printf '%s\n' \
     '# Esperar a MySQL' \
     'if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then' \
     '    echo "⏳ Esperando a MySQL en $DB_HOST:3306..."' \
-    '    echo "🔍 Probando resolución DNS de $DB_HOST..."' \
-    '    php -r "echo gethostbyname(getenv(\"DB_HOST\")) . PHP_EOL;" 2>&1 || echo "  (gethostbyname falló)"' \
-    '    echo "🔍 Probando fsockopen..."' \
-    '    php -r "\$fp = @fsockopen(getenv(\"DB_HOST\"), 3306, \$errno, \$errstr, 3); if (!\$fp) { echo \"Error: \" . \$errno . \" - \" . \$errstr . PHP_EOL; } else { echo \"Conectado!\" . PHP_EOL; fclose(\$fp); }"' \
     '    MYSQL_OK=0' \
-    '    for i in 1 2 3 4 5 6 7 8 9 10; do' \
+    '    for i in 1 2 3 4 5; do' \
     '        if php -r "exit(@fsockopen(getenv(\"DB_HOST\"),3306,\$e,\$er,3) ? 1 : 0);" 2>/dev/null; then' \
     '            echo "✅ MySQL disponible (intento $i)"' \
     '            MYSQL_OK=1' \
     '            break' \
     '        fi' \
-    '        sleep 2' \
+    '        sleep 3' \
     '    done' \
     '    if [ "$MYSQL_OK" = "1" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then' \
     '        DB_NAME_FINAL=${DB_NAME:-erp_animal}' \
@@ -142,12 +138,16 @@ RUN printf '%s\n' \
     'echo "🎉 ERP Animal listo!"' \
     'echo "============================================"' \
     '' \
-    '# Iniciar nginx en primer plano' \
+    '# Iniciar nginx en primer plano (en background por un momento para verificar)' \
+    'echo "🚀 Iniciando nginx..."' \
+    'nginx -t 2>&1 | head -5' \
+    '' \
+    '# Iniciar nginx' \
     'exec nginx -g "daemon off;"' \
     > /docker-entrypoint.sh && \
     chmod +x /docker-entrypoint.sh && \
     ls -la /docker-entrypoint.sh && \
-    head -3 /docker-entrypoint.sh
+    head -5 /docker-entrypoint.sh
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
