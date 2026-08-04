@@ -80,11 +80,11 @@ RUN printf '%s\n' \
     '' \
     '# Esperar a MySQL' \
     'if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then' \
-    '    echo "⏳ Esperando a MySQL en $DB_HOST..."' \
+    '    echo "⏳ Esperando a MySQL en $DB_HOST:3306..."' \
     '    MYSQL_OK=0' \
     '    for i in 1 2 3 4 5 6 7 8 9 10; do' \
-    '        if nc -z -w3 "$DB_HOST" 3306 2>/dev/null; then' \
-    '            echo "✅ MySQL disponible"' \
+    '        if php -r "exit(@fsockopen(getenv(\x27DB_HOST\x27),3306,\$e,\$er,3) ? 1 : 0);" 2>/dev/null; then' \
+    '            echo "✅ MySQL disponible (intento $i)"' \
     '            MYSQL_OK=1' \
     '            break' \
     '        fi' \
