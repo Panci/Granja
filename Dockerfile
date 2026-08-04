@@ -79,21 +79,35 @@ RUN printf '%s\n' \
     '# Esperar a MySQL' \
     'if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then' \
     '    echo "⏳ Esperando a MySQL en $DB_HOST..."' \
-    '    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do' \
+    '    MYSQL_OK=0' \
+    '    for i in 1 2 3 4 5 6 7 8 9 10; do' \
     '        if nc -z -w3 "$DB_HOST" 3306 2>/dev/null; then' \
     '            echo "✅ MySQL disponible"' \
+    '            MYSQL_OK=1' \
     '            break' \
     '        fi' \
     '        sleep 2' \
     '    done' \
-    '    DB_NAME_FINAL=${DB_NAME:-erp_animal}' \
-    '    if [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then' \
-    '        if mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" -e "SHOW TABLES LIKE \x27animals\x27;" 2>/dev/null | grep -q "animals"; then' \
+    '    if [ "$MYSQL_OK" = "1" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then' \
+    '        DB_NAME_FINAL=${DB_NAME:-erp_animal}' \
+    '        echo "📋 Verificando si la tabla animals existe..."' \
+    '        TABLE_EXISTS=$(mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" -N -e "SHOW TABLES LIKE \x27animals\x27;" "$DB_NAME_FINAL" 2>/dev/null)' \
+    '        if [ -n "$TABLE_EXISTS" ]; then' \
     '            echo "✅ Tabla animals ya existe"' \
     '        elif [ -f /var/www/html/schema.sql ]; then' \
-    '            echo "📦 Importando schema.sql..."' \
-    '            mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" < /var/www/html/schema.sql 2>/dev/null && echo "✅ Schema importado" || echo "⚠️  No se pudo importar schema"' \
+    '            echo "📦 Importando schema.sql en $DB_NAME_FINAL..."' \
+    '            mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" < /var/www/html/schema.sql' \
+    '            IMPORT_RESULT=$?' \
+    '            if [ "$IMPORT_RESULT" -eq 0 ]; then' \
+    '                echo "✅ Schema importado correctamente"' \
+    '            else' \
+    '                echo "⚠️  Fallo al importar schema (código $IMPORT_RESULT) - continuando..."' \
+    '            fi' \
+    '        else' \
+    '            echo "⚠️  schema.sql no encontrado"' \
     '        fi' \
+    '    else' \
+    '        echo "⚠️  MySQL no disponible o credenciales faltantes - continuando..."' \
     '    fi' \
     'fi' \
     '' \
