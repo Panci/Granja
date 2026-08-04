@@ -65,6 +65,18 @@ RUN printf '%s\n' \
     'echo "🐾 ERP Animal — Iniciando (nginx + PHP-FPM)"' \
     'echo "============================================"' \
     '' \
+    '# DEBUG: Mostrar env vars de BD' \
+    'echo "🔍 Variables de entorno de BD:"' \
+    'echo "  DB_HOST=${DB_HOST:-(vacío)}"' \
+    'echo "  DB_NAME=${DB_NAME:-(vacío)}"' \
+    'echo "  DB_USER=${DB_USER:-(vacío)}"' \
+    'echo "  DB_PORT=${DB_PORT:-3306}"' \
+    'if [ -z "$DB_PASS" ]; then echo "  DB_PASS=(vacío)"; else echo "  DB_PASS=(presente, longitud: ${#DB_PASS})"; fi' \
+    '' \
+    '# DEBUG: Mostrar config.php generado' \
+    'echo "🔍 config.php generado:"' \
+    'grep -E "db_host|db_name|db_user" /var/www/html/config.php 2>/dev/null || echo "  (no se pudo leer)"' \
+    '' \
     '# Configurar PHP' \
     'if [ -f /var/www/html/config.example.php ]; then' \
     '    if [ ! -f /var/www/html/config.php ]; then' \
