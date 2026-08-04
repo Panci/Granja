@@ -1,8 +1,7 @@
 # ============================================================
-# Dockerfile para Dokploy - ERP Animal v4
+# Dockerfile para Dokploy - ERP Animal v5
 # ============================================================
 # Stack: Node 20 (build) + nginx + PHP-FPM (runtime)
-# Sirve frontend estático + ejecuta api.php para BD
 # ============================================================
 
 # ---------- Etapa 1: Build del frontend ----------
@@ -34,38 +33,93 @@ RUN apk add --no-cache \
     curl \
     bash
 
-# Crear directorios
-RUN mkdir -p /var/www/html /run/nginx /var/log/php83 /var/lib/nginx/tmp /var/lib/nginx/logs
+# Crear directorios necesarios
+RUN mkdir -p /var/www/html /run/nginx /var/log/php83 /var/lib/nginx/tmp /var/lib/nginx/logs /docker-entrypoint-init.d
 
 # Copiar el build del frontend
 COPY --from=builder /app/dist/ /var/www/html/
 
-# Copiar archivos PHP y schema
+# Copiar archivos PHP
 COPY api.php /var/www/html/api.php
 COPY schema.sql /var/www/html/schema.sql
 COPY config.example.php /var/www/html/config.example.php
 
-# Generar config.php desde plantilla (será sobreescrito por entrypoint con env vars)
+# Generar config.php inicial
 RUN cp /var/www/html/config.example.php /var/www/html/config.php && \
     chmod 644 /var/www/html/config.php
 
 # Configurar nginx
 COPY docker-nginx.conf /etc/nginx/conf.d/default.conf
 
-# Script de inicio
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
-# Permisos
-RUN chown -R nginx:nginx /var/www/html && \
-    chmod -R 755 /var/www/html && \
-    chmod 644 /var/www/html/api.php && \
-    chmod 644 /var/www/html/config.php && \
-    chmod 644 /var/www/html/schema.sql
+# Crear entrypoint inline en /docker-entrypoint.sh
+# Esto evita problemas con line endings de CRLF en Windows
+RUN printf '%s\n' \
+    '#!/bin/sh' \
+    'set -e' \
+    'echo "============================================"' \
+    'echo "🐾 ERP Animal — Iniciando (nginx + PHP-FPM)"' \
+    'echo "============================================"' \
+    '' \
+    '# Configurar PHP' \
+    'if [ -f /var/www/html/config.example.php ]; then' \
+    '    if [ ! -f /var/www/html/config.php ]; then' \
+    '        cp /var/www/html/config.example.php /var/www/html/config.php' \
+    '    fi' \
+    '    if [ -n "$DB_HOST" ]; then sed -i "s|\x27localhost\x27;|\x27$DB_HOST\x27;|" /var/www/html/config.php || true; fi' \
+    '    if [ -n "$DB_NAME" ]; then sed -i "s|\x27u123456_erp_animal\x27;|\x27$DB_NAME\x27;|" /var/www/html/config.php || true; fi' \
+    '    if [ -n "$DB_USER" ]; then sed -i "s|\x27u123456_admin\x27;|\x27$DB_USER\x27;|" /var/www/html/config.php || true; fi' \
+    '    if [ -n "$DB_PASS" ]; then sed -i "s|\x27tu_password_segura\x27;|\x27$DB_PASS\x27;|" /var/www/html/config.php || true; fi' \
+    '    chmod 644 /var/www/html/config.php' \
+    '    echo "✅ config.php configurado"' \
+    'fi' \
+    '' \
+    '# Esperar a MySQL' \
+    'if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "localhost" ] && [ "$DB_HOST" != "127.0.0.1" ]; then' \
+    '    echo "⏳ Esperando a MySQL en $DB_HOST..."' \
+    '    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do' \
+    '        if nc -z -w3 "$DB_HOST" 3306 2>/dev/null; then' \
+    '            echo "✅ MySQL disponible"' \
+    '            break' \
+    '        fi' \
+    '        sleep 2' \
+    '    done' \
+    '    DB_NAME_FINAL=${DB_NAME:-erp_animal}' \
+    '    if [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then' \
+    '        if mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" -e "SHOW TABLES LIKE \x27animals\x27;" 2>/dev/null | grep -q "animals"; then' \
+    '            echo "✅ Tabla animals ya existe"' \
+    '        elif [ -f /var/www/html/schema.sql ]; then' \
+    '            echo "📦 Importando schema.sql..."' \
+    '            mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME_FINAL" < /var/www/html/schema.sql 2>/dev/null && echo "✅ Schema importado" || echo "⚠️  No se pudo importar schema"' \
+    '        fi' \
+    '    fi' \
+    'fi' \
+    '' \
+    '# Iniciar PHP-FPM' \
+    'mkdir -p /run' \
+    'php-fpm83 -D 2>/dev/null || true' \
+    'sleep 2' \
+    'if pgrep -f php-fpm > /dev/null; then echo "✅ PHP-FPM corriendo"; else echo "⚠️  PHP-FPM no detectado"; fi' \
+    '' \
+    '# Permisos' \
+    'chown -R nginx:nginx /var/www/html 2>/dev/null || true' \
+    'chmod -R 755 /var/www/html 2>/dev/null || true' \
+    '' \
+    'echo "🎉 ERP Animal listo!"' \
+    'echo "============================================"' \
+    '' \
+    '# Iniciar nginx en primer plano' \
+    'exec nginx -g "daemon off;"' \
+    > /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh && \
+    ls -la /docker-entrypoint.sh && \
+    head -3 /docker-entrypoint.sh
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
 
 EXPOSE 8080
+
+# Verificar que el entrypoint existe antes de CMD
+RUN test -x /docker-entrypoint.sh || (echo "❌ ERROR: entrypoint no ejecutable" && exit 1)
 
 CMD ["/docker-entrypoint.sh"]
