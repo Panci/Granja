@@ -22,9 +22,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copiar package.json + lock
+# Copiar package.json
 COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/package-lock.json /app/package-lock.json 2>/dev/null || true
 
 # Instalar SOLO dependencias de producción (express, mysql2, cors)
 # También instalamos serve como fallback
