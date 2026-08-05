@@ -280,7 +280,8 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 // SPA fallback: redirigir todas las rutas no-API al index.html
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
+    // Solo redirigir si NO es una ruta de API
+    if (req.path.startsWith('/api') || req.path === '/api.php') {
         return res.status(404).json({ success: false, error: 'Endpoint no encontrado' });
     }
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
