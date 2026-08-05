@@ -122,6 +122,12 @@ async function ensureSchema() {
 // Middleware
 // ============================================================
 app.use(cors());
+
+// Log de todas las requests para diagnóstico
+app.use((req, res, next) => {
+    console.log(`📥 ${req.method} ${req.path} (Host: ${req.headers.host})`);
+    next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
