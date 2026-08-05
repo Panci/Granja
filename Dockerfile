@@ -15,8 +15,8 @@ COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/server/ /app/server/
 COPY --from=builder /app/dist/ /app/dist/
 
-# Instalar dependencias de producción (Express + MariaDB)
-RUN npm install --omit=dev --no-cache express@^4 mysql2@^3 cors@^2 2>&1 | tail -3
+# Instalar dependencias de producción (Express + CORS)
+RUN npm install --omit=dev --no-cache express@^4 cors@^2 2>&1 | tail -3
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
