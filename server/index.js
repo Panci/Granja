@@ -61,6 +61,25 @@ async function initDB() {
         console.log('   No se pudo obtener info de red:', e.message);
     }
 
+    // Detectar subred del contenedor
+    const os = require('os');
+    const ifs = os.networkInterfaces();
+    const subredes = new Set();
+    Object.values(ifs).flat().forEach(d => {
+        if (d.family === 'IPv4' && !d.internal) {
+            const parts = d.address.split('.');
+            subredes.add(`${parts[0]}.${parts[1]}.${parts[2]}`);
+        }
+    });
+
+    // Generar IPs candidatas en la misma subred
+    const ipsCandidatas = new Set();
+    subredes.forEach(subred => {
+        for (let i = 2; i < 20; i++) {
+            ipsCandidatas.add(`${subred}.${i}`);
+        }
+    });
+
     // Lista de hosts a intentar en orden
     const hostsToTry = [
         DB_CONFIG.host,
@@ -72,16 +91,15 @@ async function initDB() {
         'localhost',
         '127.0.0.1',
         'host.docker.internal',
-        '172.17.0.1',
-        '172.18.0.1',
-        '172.19.0.1',
-        '172.20.0.1',
+        ...Array.from(ipsCandidatas),
     ].filter((v, i, a) => a.indexOf(v) === i);
+
+    console.log(`🔍 Probando ${hostsToTry.length} hosts...`);
 
     for (const host of hostsToTry) {
         try {
-            console.log(`🔌 Intentando conectar a MySQL ${host}:${DB_CONFIG.port}...`);
-            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 3000 });
+            console.log(`🔌 ${host}:${DB_CONFIG.port}`);
+            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 1500 });
             const conn = await testPool.getConnection();
             await conn.ping();
             conn.release();
@@ -91,7 +109,7 @@ async function initDB() {
             await ensureSchema();
             return;
         } catch (err) {
-            console.log(`   ⚠️  ${host}: ${err.code || err.message}`);
+            // Silenciar errores de IPs que no responden
         }
     }
 
