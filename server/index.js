@@ -41,65 +41,19 @@ const DB_CONFIG = {
 let pool = null;
 
 async function initDB() {
-    // Mostrar información de red
-    console.log('📡 Información de red del contenedor:');
-    try {
-        const fs = require('fs');
-        const hosts = fs.readFileSync('/etc/hosts', 'utf8');
-        console.log('   /etc/hosts:\n' + hosts.split('\n').slice(0, 10).join('\n'));
-        const os = require('os');
-        console.log('   Hostname:', os.hostname());
-        const ifs = os.networkInterfaces();
-        Object.keys(ifs).forEach(iface => {
-            ifs[iface].forEach(details => {
-                if (details.family === 'IPv4') {
-                    console.log(`   IP: ${details.address} (${iface})`);
-                }
-            });
-        });
-    } catch (e) {
-        console.log('   No se pudo obtener info de red:', e.message);
-    }
+    // Modo docker-compose: DB_HOST=db (servicio db)
+    console.log('🔌 Conectando a MySQL...');
+    console.log(`   DB_HOST: ${DB_CONFIG.host}:${DB_CONFIG.port}`);
 
-    // Detectar subred del contenedor
-    const os = require('os');
-    const ifs = os.networkInterfaces();
-    const subredes = new Set();
-    Object.values(ifs).flat().forEach(d => {
-        if (d.family === 'IPv4' && !d.internal) {
-            const parts = d.address.split('.');
-            subredes.add(`${parts[0]}.${parts[1]}.${parts[2]}`);
-        }
-    });
-
-    // Generar IPs candidatas en la misma subred
-    const ipsCandidatas = new Set();
-    subredes.forEach(subred => {
-        for (let i = 2; i < 20; i++) {
-            ipsCandidatas.add(`${subred}.${i}`);
-        }
-    });
-
-    // Lista de hosts a intentar en orden
     const hostsToTry = [
         DB_CONFIG.host,
-        'granja-granja-db-wnzoofs',
-        'granja-db',
         'db',
-        'mariadb',
-        'mysql',
         'localhost',
-        '127.0.0.1',
-        'host.docker.internal',
-        ...Array.from(ipsCandidatas),
     ].filter((v, i, a) => a.indexOf(v) === i);
-
-    console.log(`🔍 Probando ${hostsToTry.length} hosts...`);
 
     for (const host of hostsToTry) {
         try {
-            console.log(`🔌 ${host}:${DB_CONFIG.port}`);
-            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 1500 });
+            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 5000 });
             const conn = await testPool.getConnection();
             await conn.ping();
             conn.release();
@@ -109,12 +63,12 @@ async function initDB() {
             await ensureSchema();
             return;
         } catch (err) {
-            // Silenciar errores de IPs que no responden
+            console.log(`   ⚠️  ${host}: ${err.message}`);
         }
     }
 
-    console.error('❌ No se pudo conectar a MySQL en ningún host');
-    console.log('⚠️  La app funcionará en modo offline (localStorage)');
+    console.error('❌ No se pudo conectar a MySQL');
+    console.log('⚠️  Modo offline (localStorage)');
     pool = null;
 }
 

@@ -1,7 +1,7 @@
 # ============================================================
-# docker-compose.yml — Para Dokploy
+# docker-compose.yml para Dokploy
 # ============================================================
-# Solo la app. La BD (si la quieres) la agregamos después.
+# App + MariaDB en la misma red Docker
 # ============================================================
 
 services:
@@ -9,24 +9,40 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: erp-animal-app
+    container_name: granja-app
     restart: unless-stopped
-    # Publicar el puerto para que Traefik/Dokploy lo encuentre
     ports:
       - "8080:8080"
     environment:
       HOST: 0.0.0.0
       PORT: 8080
-      TZ: UTC
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: erp_user
+      DB_PASS: Panci2015.M
+      DB_NAME: erp_animal
+    depends_on:
+      - db
     networks:
-      - erp-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      - granja-net
+
+  db:
+    image: mariadb:11
+    container_name: granja-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: RootPanci2015
+      MARIADB_DATABASE: erp_animal
+      MARIADB_USER: erp_user
+      MARIADB_PASSWORD: Panci2015.M
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - granja-net
 
 networks:
-  erp-network:
+  granja-net:
     driver: bridge
+
+volumes:
+  db-data:
