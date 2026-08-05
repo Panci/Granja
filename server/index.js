@@ -41,16 +41,41 @@ const DB_CONFIG = {
 let pool = null;
 
 async function initDB() {
-    // Lista de hosts a intentar en orden (incluye IP del gateway Docker)
+    // Mostrar información de red
+    console.log('📡 Información de red del contenedor:');
+    try {
+        const fs = require('fs');
+        const hosts = fs.readFileSync('/etc/hosts', 'utf8');
+        console.log('   /etc/hosts:\n' + hosts.split('\n').slice(0, 10).join('\n'));
+        const os = require('os');
+        console.log('   Hostname:', os.hostname());
+        const ifs = os.networkInterfaces();
+        Object.keys(ifs).forEach(iface => {
+            ifs[iface].forEach(details => {
+                if (details.family === 'IPv4') {
+                    console.log(`   IP: ${details.address} (${iface})`);
+                }
+            });
+        });
+    } catch (e) {
+        console.log('   No se pudo obtener info de red:', e.message);
+    }
+
+    // Lista de hosts a intentar en orden
     const hostsToTry = [
         DB_CONFIG.host,
-        'granja-db',
         'granja-granja-db-wnzoofs',
+        'granja-db',
         'db',
+        'mariadb',
+        'mysql',
         'localhost',
         '127.0.0.1',
         'host.docker.internal',
-        '172.17.0.1', // gateway default Docker
+        '172.17.0.1',
+        '172.18.0.1',
+        '172.19.0.1',
+        '172.20.0.1',
     ].filter((v, i, a) => a.indexOf(v) === i);
 
     for (const host of hostsToTry) {
