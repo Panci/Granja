@@ -107,11 +107,13 @@ app.use((req, res, next) => {
 // ============================================================
 // API: Health check
 // ============================================================
+// Health check
 app.get('/api/health', (req, res) => {
     const dbStatus = db ? 'connected' : 'disconnected';
     res.json({
         status: 'ok',
         db: dbStatus,
+        version: 'v21-mobile',
         timestamp: new Date().toISOString(),
     });
 });
@@ -291,7 +293,14 @@ app.all('/api.php', (req, res) => {
 // ============================================================
 // Servir el frontend estático
 // ============================================================
-app.use(express.static(path.join(__dirname, '..', 'dist')));
+// Servir el frontend estático con headers anti-caché
+app.use(express.static(path.join(__dirname, '..', 'dist'), {
+    setHeaders: (res, filePath) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
 
 // SPA fallback
 app.use((req, res, next) => {
