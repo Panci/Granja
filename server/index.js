@@ -51,19 +51,30 @@ async function initDB() {
         'localhost',
     ].filter((v, i, a) => a.indexOf(v) === i);
 
-    for (const host of hostsToTry) {
-        try {
-            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 5000 });
-            const conn = await testPool.getConnection();
-            await conn.ping();
-            conn.release();
-            console.log(`✅ MySQL conectado correctamente vía ${host}`);
-            pool = testPool;
-            DB_CONFIG.host = host;
-            await ensureSchema();
-            return;
-        } catch (err) {
-            console.log(`   ⚠️  ${host}: ${err.message}`);
+    // Retry loop: MariaDB puede tardar en arrancar
+    const maxRetries = 10;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        for (const host of hostsToTry) {
+            try {
+                console.log(`   [intento ${attempt}/${maxRetries}] Conectando a ${host}...`);
+                const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 3000 });
+                const conn = await testPool.getConnection();
+                await conn.ping();
+                conn.release();
+                console.log(`✅ MySQL conectado correctamente vía ${host}`);
+                pool = testPool;
+                DB_CONFIG.host = host;
+                await ensureSchema();
+                return;
+            } catch (err) {
+                console.log(`     ⚠️  ${host}: ${err.code || err.message}`);
+                // Continuar al siguiente host
+            }
+        }
+        // Esperar antes del siguiente intento
+        if (attempt < maxRetries) {
+            console.log(`   ⏳ Esperando 5 segundos antes del siguiente intento...`);
+            await new Promise(r => setTimeout(r, 5000));
         }
     }
 
