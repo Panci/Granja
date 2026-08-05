@@ -1,8 +1,8 @@
 # ============================================================
-# Dockerfile para Dokploy - ERP Animal v7 (simple)
+# Dockerfile para Dokploy - ERP Animal v8 (Express + MariaDB)
 # ============================================================
-# Stack: Node 20 (build) + Node 20 + serve (runtime)
-# Solo frontend estático. Sincronización con BD via frontend.
+# Stack: Node 20 (build) + Node 20 + Express + mysql2 (runtime)
+# Sirve frontend estático + API REST para sincronización con BD
 # ============================================================
 
 # ---------- Etapa 1: Build del frontend ----------
@@ -10,24 +10,47 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instalar TODAS las dependencias (dev + prod) para hacer el build
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
+
 COPY . .
 RUN npm run build
 
-# ---------- Etapa 2: Imagen final con serve ----------
+# ---------- Etapa 2: Imagen final con Express ----------
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/dist/ /app/dist/
+# Copiar package.json + lock
 COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/package-lock.json /app/package-lock.json 2>/dev/null || true
 
-RUN npm install --omit=dev serve
+# Instalar SOLO dependencias de producción (express, mysql2, cors)
+# También instalamos serve como fallback
+RUN npm install --omit=dev express mysql2 cors serve 2>&1 | tail -5
+
+# Copiar el código del servidor
+COPY --from=builder /app/server/ /app/server/
+
+# Copiar el build del frontend
+COPY --from=builder /app/dist/ /app/dist/
+
+# Verificar instalación
+RUN ls -la /app/node_modules/express/package.json && \
+    ls -la /app/node_modules/mysql2/package.json && \
+    ls -la /app/server/ && \
+    ls -la /app/dist/ | head -5 && \
+    echo "✅ Todo listo"
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
+ENV NODE_ENV=production
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "echo 'Iniciando serve...' && exec npx serve -s /app/dist -l tcp://0.0.0.0:8080 --no-clipboard --no-port-switching"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
+
+CMD ["sh", "-c", "echo '🐾 Iniciando ERP Animal API Server...' && exec node server/index.js"]
