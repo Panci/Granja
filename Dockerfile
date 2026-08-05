@@ -35,6 +35,11 @@ COPY --from=builder /app/server/ /app/server/
 # Copiar el build del frontend
 COPY --from=builder /app/dist/ /app/dist/
 
+# Eliminar archivos PHP antiguos (Express maneja la API)
+RUN rm -f /app/dist/api.php /app/dist/config.php /app/dist/config.example.php /app/dist/schema.sql /app/dist/README.md && \
+    echo "✅ Archivos PHP eliminados del dist" && \
+    ls -la /app/dist/
+
 # Verificar instalación
 RUN ls -la /app/node_modules/express/package.json && \
     ls -la /app/node_modules/mysql2/package.json && \
