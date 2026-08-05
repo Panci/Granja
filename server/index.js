@@ -95,12 +95,21 @@ async function ensureSchema() {
             );
             // Dividir por ; y ejecutar cada statement
             const statements = schema.split(';').filter(s => s.trim());
+            let imported = 0;
             for (const stmt of statements) {
                 if (stmt.trim()) {
-                    await pool.query(stmt);
+                    try {
+                        await pool.query(stmt);
+                        imported++;
+                    } catch (err) {
+                        // Ignorar errores de tablas duplicadas
+                        if (!err.message.includes('already exists')) {
+                            console.warn(`   ⚠️  Schema stmt: ${err.message}`);
+                        }
+                    }
                 }
             }
-            console.log('✅ Schema importado correctamente');
+            console.log(`✅ Schema importado (${imported} statements)`);
         } else {
             console.log('✅ Tabla animals ya existe');
         }
