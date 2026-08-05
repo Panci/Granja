@@ -485,7 +485,18 @@ window.App = (() => {
     input.click();
   }
 
-  return { init, navigateTo, refreshModule, exportData, importData, handlePageClick };
+  return {
+    init,
+    navigateTo,
+    refreshModule,
+    exportData,
+    importData,
+    handlePageClick,
+    toggleMobileMenu,
+    closeMobileMenu,
+    _renderShell,
+    _bindSidebarToggle,
+  };
 })();
 
 // ---- Boot ----
