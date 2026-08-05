@@ -292,7 +292,7 @@ app.use((req, res, next) => {
 // ============================================================
 async function start() {
     console.log('============================================');
-    console.log('🐾 ERP Animal — Iniciando API Server');
+    console.log('🐾 ERP Animal — Iniciando API Server v11');
     console.log('============================================');
     console.log(`📡 Puerto: ${PORT}`);
     console.log(`🌐 Host: ${HOST}`);
@@ -302,6 +302,8 @@ async function start() {
 
     app.listen(PORT, HOST, () => {
         console.log(`✅ Servidor escuchando en http://${HOST}:${PORT}`);
+        console.log(`🔗 Health: http://${HOST}:${PORT}/api/health`);
+        console.log(`🔗 API: http://${HOST}:${PORT}/api/animals`);
         console.log('============================================');
     });
 }
