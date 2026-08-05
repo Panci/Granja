@@ -201,6 +201,36 @@ app.all('/api.php', (req, res) => {
 
     try {
         switch (action) {
+            case 'create': {
+                const data = req.body.data || req.body;
+                const table = collection;
+                if (!ALLOWED_TABLES.includes(table)) {
+                    return res.json({ success: false, error: 'Tabla no permitida' });
+                }
+                if (!data.id) {
+                    return res.json({ success: false, error: 'Falta id' });
+                }
+                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
+                return res.json({ success: true });
+            }
+            case 'update': {
+                const data = req.body.data || req.body;
+                const table = collection;
+                if (!ALLOWED_TABLES.includes(table)) {
+                    return res.json({ success: false, error: 'Tabla no permitida' });
+                }
+                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
+                return res.json({ success: true });
+            }
+            case 'delete': {
+                const table = collection;
+                const id = req.query.id || req.body.id;
+                if (!ALLOWED_TABLES.includes(table)) {
+                    return res.json({ success: false, error: 'Tabla no permitida' });
+                }
+                db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+                return res.json({ success: true });
+            }
             case 'fetch_all': {
                 const allData = {};
                 for (const t of ALLOWED_TABLES) {
