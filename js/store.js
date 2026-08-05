@@ -46,7 +46,7 @@ window.Store = (() => {
     }
   }
 
-  const API_URL = '/api.php';
+  const API_URL = '/api.php'; // No hay backend, siempre fallará silenciosamente
 
   async function _apiCall(action, collection, body = null) {
     try {
@@ -84,7 +84,8 @@ window.Store = (() => {
         }
       });
       if (!res.ok) {
-        throw new Error(`HTTP status: ${res.status}`);
+        // Modo offline silencioso - no mostrar error
+        return false;
       }
       const result = await _parseJsonResponse(res);
       if (result.success && result.data) {
@@ -100,10 +101,7 @@ window.Store = (() => {
       }
       return false;
     } catch (err) {
-      console.error('Failed to sync from database:', err);
-      if (window.Helpers && typeof window.Helpers.showToast === 'function') {
-        window.Helpers.showToast('No se pudo conectar con el servidor. Usando datos locales.', 'warning');
-      }
+      // Modo offline silencioso
       return false;
     }
   }
