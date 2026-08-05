@@ -1,9 +1,11 @@
 # ============================================================
-# Dockerfile para Dokploy - ERP Animal v8 (Express + MariaDB)
+# Dockerfile para Dokploy - ERP Animal v9 (Express + MariaDB)
 # ============================================================
 # Stack: Node 20 (build) + Node 20 + Express + mysql2 (runtime)
 # Sirve frontend estático + API REST para sincronización con BD
 # ============================================================
+
+ARG CACHEBUST=1
 
 # ---------- Etapa 1: Build del frontend ----------
 FROM node:20-alpine AS builder
