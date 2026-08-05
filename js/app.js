@@ -76,7 +76,79 @@ window.App = (() => {
         <main class="main-content" id="mainContent">
         </main>
       </div>
+
+      <!-- Barra de navegación inferior (móvil) -->
+      <nav class="bottom-nav" id="bottomNav">
+        <div class="bottom-nav-item ${currentModule === 'dashboard' ? 'active' : ''}" onclick="App.navigateTo('dashboard')" id="bnav-dashboard">
+          <span class="bottom-nav-icon">📊</span>
+          <span class="bottom-nav-label">Inicio</span>
+        </div>
+        <div class="bottom-nav-item ${currentModule === 'inventario' ? 'active' : ''}" onclick="App.navigateTo('inventario')" id="bnav-inventario">
+          <span class="bottom-nav-icon">🐾</span>
+          <span class="bottom-nav-label">Animales</span>
+        </div>
+        <div class="bottom-nav-item ${currentModule === 'salud' ? 'active' : ''}" onclick="App.navigateTo('salud')" id="bnav-salud">
+          <span class="bottom-nav-icon">🏥</span>
+          <span class="bottom-nav-label">Salud</span>
+        </div>
+        <div class="bottom-nav-item ${currentModule === 'alimentacion' ? 'active' : ''}" onclick="App.navigateTo('alimentacion')" id="bnav-alimentacion">
+          <span class="bottom-nav-icon">🥣</span>
+          <span class="bottom-nav-label">Alimentos</span>
+        </div>
+        <div class="bottom-nav-item ${currentModule === 'produccion' ? 'active' : ''}" onclick="App.navigateTo('produccion')" id="bnav-produccion">
+          <span class="bottom-nav-icon">🥚</span>
+          <span class="bottom-nav-label">Producción</span>
+        </div>
+        <button class="bottom-nav-more" id="bottomNavMore" onclick="App.toggleMobileMenu()" aria-label="Más opciones">
+          <span class="bottom-nav-icon">⋯</span>
+          <span class="bottom-nav-label">Más</span>
+        </button>
+      </nav>
+
+      <!-- Menú extra para móvil (Reproducción, Finanzas, Sync) -->
+      <div class="mobile-menu-overlay" id="mobileMenuOverlay" onclick="App.closeMobileMenu()"></div>
+      <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+          <span>Más opciones</span>
+          <button class="mobile-menu-close" onclick="App.closeMobileMenu()">✕</button>
+        </div>
+        <div class="mobile-menu-item ${currentModule === 'reproduccion' ? 'active' : ''}" onclick="App.navigateTo('reproduccion'); App.closeMobileMenu();">
+          <span class="mobile-menu-icon">🐣</span>
+          <span class="mobile-menu-label">Reproducción</span>
+        </div>
+        <div class="mobile-menu-item ${currentModule === 'finanzas' ? 'active' : ''}" onclick="App.navigateTo('finanzas'); App.closeMobileMenu();">
+          <span class="mobile-menu-icon">💰</span>
+          <span class="mobile-menu-label">Finanzas</span>
+        </div>
+        <div class="mobile-menu-divider"></div>
+        <div class="mobile-menu-item" onclick="App.exportData(); App.closeMobileMenu();">
+          <span class="mobile-menu-icon">💾</span>
+          <span class="mobile-menu-label">Exportar Datos</span>
+        </div>
+        <div class="mobile-menu-item" onclick="App.importData(); App.closeMobileMenu();">
+          <span class="mobile-menu-icon">📂</span>
+          <span class="mobile-menu-label">Importar Datos</span>
+        </div>
+      </div>
     `;
+  }
+
+  function toggleMobileMenu() {
+    const overlay = document.getElementById('mobileMenuOverlay');
+    const menu = document.getElementById('mobileMenu');
+    if (overlay && menu) {
+      overlay.classList.toggle('active');
+      menu.classList.toggle('active');
+    }
+  }
+
+  function closeMobileMenu() {
+    const overlay = document.getElementById('mobileMenuOverlay');
+    const menu = document.getElementById('mobileMenu');
+    if (overlay && menu) {
+      overlay.classList.remove('active');
+      menu.classList.remove('active');
+    }
   }
 
   function _navItem(key) {
@@ -90,10 +162,25 @@ window.App = (() => {
   function navigateTo(module) {
     currentModule = module;
 
-    // Update nav active state
+    // Update nav active state (sidebar)
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const activeNav = document.getElementById(`nav-${module}`);
     if (activeNav) activeNav.classList.add('active');
+
+    // Update nav active state (bottom nav)
+    document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+    const activeBottomNav = document.getElementById(`bnav-${module}`);
+    if (activeBottomNav) activeBottomNav.classList.add('active');
+
+    // Update nav active state (mobile menu)
+    document.querySelectorAll('.mobile-menu-item').forEach(el => el.classList.remove('active'));
+    const allItems = document.querySelectorAll('.mobile-menu-item');
+    allItems.forEach((item, idx) => {
+      // Reproducción es el primer item, Finanzas el segundo
+      if ((idx === 0 && module === 'reproduccion') || (idx === 1 && module === 'finanzas')) {
+        item.classList.add('active');
+      }
+    });
 
     // Close mobile sidebar
     const sidebar = document.getElementById('sidebar');
