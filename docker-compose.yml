@@ -1,7 +1,5 @@
 # ============================================================
-# docker-compose.yml para Dokploy
-# ============================================================
-# App + MariaDB en la misma red Docker
+# docker-compose.yml para Dokploy con Traefik labels
 # ============================================================
 
 services:
@@ -14,33 +12,24 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8080
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: erp_user
-      DB_PASS: Panci2015.M
-      DB_NAME: erp_animal
-    depends_on:
-      - db
-    networks:
-      - granja-net
-
-  db:
-    image: mariadb:11
-    container_name: granja-db
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: RootPanci2015
-      MARIADB_DATABASE: erp_animal
-      MARIADB_USER: erp_user
-      MARIADB_PASSWORD: Panci2015.M
+      DB_PATH: /app/data/erp_animal.db
     volumes:
-      - db-data:/var/lib/mysql
+      - granja-data:/app/data
     networks:
       - granja-net
+    labels:
+      # Traefik labels para Dokploy
+      - "traefik.enable=true"
+      - "traefik.http.routers.granja-app.rule=Host(`granjavps-c04e16-186-240-144-11.sslip.io`)"
+      - "traefik.http.routers.granja-app.entrypoints=web"
+      - "traefik.http.routers.granja-app.priority=1"
+      - "traefik.http.services.granja-app.loadbalancer.server.port=8080"
+      - "traefik.docker.network=granja-net"
 
 networks:
   granja-net:
-    driver: bridge
+    driver: overlay
+    name: granja-net
 
 volumes:
-  db-data:
+  granja-data:
