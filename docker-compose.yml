@@ -1,5 +1,7 @@
 # ============================================================
-# docker-compose.yml para Dokploy con Traefik labels
+# docker-compose.yml para Dokploy con SQLite
+# ============================================================
+# Sin network custom - usar la default de Dokploy (overlay)
 # ============================================================
 
 services:
@@ -15,21 +17,13 @@ services:
       DB_PATH: /app/data/erp_animal.db
     volumes:
       - granja-data:/app/data
-    networks:
-      - granja-net
     labels:
-      # Traefik labels para Dokploy
+      # Traefik labels para Dokploy (Solo las basicas, sin network)
       - "traefik.enable=true"
       - "traefik.http.routers.granja-app.rule=Host(`granjavps-c04e16-186-240-144-11.sslip.io`)"
       - "traefik.http.routers.granja-app.entrypoints=web"
       - "traefik.http.routers.granja-app.priority=1"
       - "traefik.http.services.granja-app.loadbalancer.server.port=8080"
-      - "traefik.docker.network=granja-net"
-
-networks:
-  granja-net:
-    driver: overlay
-    name: granja-net
 
 volumes:
   granja-data:
