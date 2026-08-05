@@ -5,10 +5,18 @@
 // Sirve la API REST + los archivos estáticos del frontend
 // ============================================================
 
-const express = require('express');
-const mysql = require('mysql2/promise');
-const path = require('path');
-const cors = require('cors');
+console.log('🐾 v14 - Cargando módulos...');
+
+try {
+    var express = require('express');
+    var mysql = require('mysql2/promise');
+    var path = require('path');
+    var cors = require('cors');
+    console.log('✅ Módulos cargados correctamente');
+} catch (e) {
+    console.error('❌ ERROR cargando módulos:', e.message);
+    process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 8080;
