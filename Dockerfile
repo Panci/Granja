@@ -1,44 +1,27 @@
 # ============================================================
-# Dockerfile para Dokploy - ERP Animal v13
+# Dockerfile para Dokploy - ERP Animal v16 STANDALONE
 # ============================================================
-# IMPORTANTE: usa node:22-alpine para forzar invalidación completa del cache
-# Stack: Node 22 + Express + MariaDB
+# Solo frontend estático. Sin BD por ahora.
+# Funciona 100% offline con localStorage.
 # ============================================================
 
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS production
+# ---------- Imagen final: solo servir archivos estáticos ----------
+FROM node:20-alpine AS production
 WORKDIR /app
 
-# Verificación visible al inicio
-RUN echo "🐾 v13 - Construyendo imagen con Express" && \
-    ls -la /tmp/
-
-COPY --from=builder /app/package.json /app/package.json
-
-# Forzar invalidación: instalar con --no-cache y packages específicos
-RUN npm install --omit=dev --no-cache express@^4 mysql2@^3 cors@^2 2>&1 | tail -3
-
-# Copiar servidor Express
-COPY --from=builder /app/server/ /app/server/
-
-# Copiar frontend
 COPY --from=builder /app/dist/ /app/dist/
+RUN npm install --omit=dev --no-cache serve 2>&1 | tail -2
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
-ENV NODE_ENV=production
 
 EXPOSE 8080
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
-
-# CMD: ejecuta Express (NO usar serve)
-CMD ["node", "server/index.js"]
+CMD ["sh", "-c", "echo '🐾 ERP Animal v16 - Servidor de archivos estáticos' && exec npx serve -s /app/dist -l tcp://0.0.0.0:8080 --no-clipboard --no-port-switching"]

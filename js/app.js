@@ -18,7 +18,12 @@ window.App = (() => {
   };
 
   async function init() {
-    await Store.syncFromDatabase();
+    // Intentar sincronizar con BD, pero continuar si falla
+    try {
+      await Store.syncFromDatabase();
+    } catch (e) {
+      console.log('📦 Modo offline - usando localStorage');
+    }
     Store.initDefaultSpecies();
     _renderShell();
     navigateTo('dashboard');
