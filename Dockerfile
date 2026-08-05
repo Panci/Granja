@@ -36,4 +36,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
 # CMD en formato JSON (mejor compatibilidad con señales)
-CMD ["node", "server/index.js"]
+# Verificar primero que el archivo existe y luego ejecutar
+CMD ["sh", "-c", "ls -la /app/server/ && echo 'Iniciando...' && exec node server/index.js"]

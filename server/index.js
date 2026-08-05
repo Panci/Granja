@@ -292,13 +292,18 @@ app.use((req, res, next) => {
 // ============================================================
 async function start() {
     console.log('============================================');
-    console.log('🐾 ERP Animal — Iniciando API Server v11');
+    console.log('🐾 ERP Animal — Iniciando API Server v12');
     console.log('============================================');
     console.log(`📡 Puerto: ${PORT}`);
     console.log(`🌐 Host: ${HOST}`);
     console.log(`🗄️  BD: ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
 
-    await initDB();
+    // Importante: NO fallar si la BD no está lista, seguir funcionando offline
+    try {
+        await initDB();
+    } catch (e) {
+        console.error('⚠️  Error iniciando BD (continuando offline):', e.message);
+    }
 
     app.listen(PORT, HOST, () => {
         console.log(`✅ Servidor escuchando en http://${HOST}:${PORT}`);
