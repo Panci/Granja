@@ -41,32 +41,32 @@ const DB_CONFIG = {
 let pool = null;
 
 async function initDB() {
-    // Lista de hosts a intentar en orden
+    // Lista de hosts a intentar en orden (incluye IP del gateway Docker)
     const hostsToTry = [
         DB_CONFIG.host,
+        'granja-db',
+        'granja-granja-db-wnzoofs',
         'db',
-        'granja-db-3u1jeq',
         'localhost',
         '127.0.0.1',
         'host.docker.internal',
-    ].filter((v, i, a) => a.indexOf(v) === i); // únicos
+        '172.17.0.1', // gateway default Docker
+    ].filter((v, i, a) => a.indexOf(v) === i);
 
     for (const host of hostsToTry) {
         try {
             console.log(`🔌 Intentando conectar a MySQL ${host}:${DB_CONFIG.port}...`);
-            const testPool = mysql.createPool({ ...DB_CONFIG, host });
+            const testPool = mysql.createPool({ ...DB_CONFIG, host, connectTimeout: 3000 });
             const conn = await testPool.getConnection();
             await conn.ping();
             conn.release();
             console.log(`✅ MySQL conectado correctamente vía ${host}`);
             pool = testPool;
-            DB_CONFIG.host = host; // actualizar host para logs
-
-            // Verificar si existe la tabla animals, si no, importar schema
+            DB_CONFIG.host = host;
             await ensureSchema();
             return;
         } catch (err) {
-            console.log(`   ⚠️  ${host}: ${err.message}`);
+            console.log(`   ⚠️  ${host}: ${err.code || err.message}`);
         }
     }
 
@@ -325,7 +325,7 @@ app.use((req, res, next) => {
 // ============================================================
 async function start() {
     console.log('============================================');
-    console.log('🐾 ERP Animal — Iniciando API Server v15');
+    console.log('�� ERP Animal — Iniciando API Server v20');
     console.log('============================================');
     console.log(`📡 Puerto: ${PORT}`);
     console.log(`🌐 Host: ${HOST}`);
