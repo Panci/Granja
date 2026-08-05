@@ -75,35 +75,9 @@ window.Store = (() => {
   }
 
   async function syncFromDatabase() {
-    try {
-      // Usar un parámetro de tiempo para evitar que los navegadores (especialmente en móviles) cacheen la petición GET
-      const res = await fetch(`${API_URL}?action=fetch_all&_t=${new Date().getTime()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
-      if (!res.ok) {
-        // Modo offline silencioso - no mostrar error
-        return false;
-      }
-      const result = await _parseJsonResponse(res);
-      if (result.success && result.data) {
-        const collections = Object.keys(ID_PREFIXES);
-        collections.forEach(col => {
-          if (Array.isArray(result.data[col])) {
-            localStorage.setItem(_key(col), JSON.stringify(result.data[col]));
-            _emit(col);
-          }
-        });
-        console.log('Database synchronization completed successfully.');
-        return true;
-      }
-      return false;
-    } catch (err) {
-      // Modo offline silencioso
-      return false;
-    }
+    // Modo standalone: no hay backend, usar localStorage directamente
+    console.log('📦 Modo standalone - usando localStorage');
+    return false;
   }
 
 
