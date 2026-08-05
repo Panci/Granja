@@ -41,23 +41,38 @@ const DB_CONFIG = {
 let pool = null;
 
 async function initDB() {
-    try {
-        console.log(`🔌 Conectando a MySQL ${DB_CONFIG.host}:${DB_CONFIG.port}...`);
-        pool = mysql.createPool(DB_CONFIG);
+    // Lista de hosts a intentar en orden
+    const hostsToTry = [
+        DB_CONFIG.host,
+        'db',
+        'granja-db-3u1jeq',
+        'localhost',
+        '127.0.0.1',
+        'host.docker.internal',
+    ].filter((v, i, a) => a.indexOf(v) === i); // únicos
 
-        // Verificar conexión
-        const conn = await pool.getConnection();
-        await conn.ping();
-        conn.release();
-        console.log('✅ MySQL conectado correctamente');
+    for (const host of hostsToTry) {
+        try {
+            console.log(`🔌 Intentando conectar a MySQL ${host}:${DB_CONFIG.port}...`);
+            const testPool = mysql.createPool({ ...DB_CONFIG, host });
+            const conn = await testPool.getConnection();
+            await conn.ping();
+            conn.release();
+            console.log(`✅ MySQL conectado correctamente vía ${host}`);
+            pool = testPool;
+            DB_CONFIG.host = host; // actualizar host para logs
 
-        // Verificar si existe la tabla animals, si no, importar schema
-        await ensureSchema();
-    } catch (err) {
-        console.error('❌ Error conectando a MySQL:', err.message);
-        console.log('⚠️  La app funcionará en modo offline (localStorage)');
-        pool = null;
+            // Verificar si existe la tabla animals, si no, importar schema
+            await ensureSchema();
+            return;
+        } catch (err) {
+            console.log(`   ⚠️  ${host}: ${err.message}`);
+        }
     }
+
+    console.error('❌ No se pudo conectar a MySQL en ningún host');
+    console.log('⚠️  La app funcionará en modo offline (localStorage)');
+    pool = null;
 }
 
 async function ensureSchema() {
@@ -300,7 +315,7 @@ app.use((req, res, next) => {
 // ============================================================
 async function start() {
     console.log('============================================');
-    console.log('🐾 ERP Animal — Iniciando API Server v12');
+    console.log('🐾 ERP Animal — Iniciando API Server v15');
     console.log('============================================');
     console.log(`📡 Puerto: ${PORT}`);
     console.log(`🌐 Host: ${HOST}`);
