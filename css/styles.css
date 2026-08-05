@@ -1335,7 +1335,7 @@ select.form-input {
 
   .main-content {
     margin-left: 0;
-    padding: 4rem 1rem 6.5rem;
+    padding: 4rem 1rem 8rem;
   }
 
   .module-header {
@@ -1366,7 +1366,7 @@ select.form-input {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 76px;
+    height: 92px;
     background: var(--bg-sidebar);
     border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));
     z-index: 100;
@@ -1388,9 +1388,9 @@ select.form-input {
     border: none;
     color: var(--text-muted, #9ca3af);
     cursor: pointer;
-    padding: 8px 4px;
+    padding: 10px 4px;
     transition: color 0.2s;
-    gap: 4px;
+    gap: 5px;
     min-width: 0;
   }
 
@@ -1404,13 +1404,13 @@ select.form-input {
   }
 
   .bottom-nav-icon {
-    font-size: 24px;
+    font-size: 30px;
     line-height: 1;
   }
 
   .bottom-nav-label {
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 600;
     line-height: 1;
     white-space: nowrap;
     overflow: hidden;
