@@ -49,14 +49,59 @@ window.Store = (() => {
   const API_URL = '/api.php'; // No hay backend, siempre fallará silenciosamente
 
   async function _apiCall(action, collection, body = null) {
-    // Modo standalone: no hay backend, no sincronizar
-    return { success: true, offline: true };
+    try {
+      const options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      };
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
+      const res = await fetch(`${API_URL}?action=${action}&collection=${collection}`, options);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const result = await _parseJsonResponse(res);
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error');
+      }
+      return result;
+    } catch (err) {
+      console.warn(`⚠️  Sync failed (${action}/${collection}):`, err.message);
+      // No mostrar toast, solo log silencioso
+      return { success: false, offline: true };
+    }
   }
 
   async function syncFromDatabase() {
-    // Modo standalone: no hay backend, usar localStorage directamente
-    console.log('📦 Modo standalone - usando localStorage');
-    return false;
+    try {
+      const res = await fetch(`${API_URL}?action=fetch_all&_t=${new Date().getTime()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!res.ok) {
+        console.log('📦 BD no disponible, usando localStorage');
+        return false;
+      }
+      const result = await _parseJsonResponse(res);
+      if (result.success && result.data) {
+        // El backend devuelve { data: { animals: [...], feeding: [...] } }
+        const data = result.data.data || result.data;
+        const collections = Object.keys(ID_PREFIXES);
+        collections.forEach(col => {
+          if (Array.isArray(data[col])) {
+            localStorage.setItem(_key(col), JSON.stringify(data[col]));
+            _emit(col);
+          }
+        });
+        console.log('✅ Sincronizado con BD');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.log('📦 Modo offline (localStorage)');
+      return false;
+    }
   }
 
 

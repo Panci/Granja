@@ -260,8 +260,17 @@ app.all('/api.php', async (req, res) => {
 
         switch (action) {
             case 'fetch_all': {
-                const rows = await query(`SELECT * FROM ${table} ORDER BY id DESC LIMIT 1000`);
-                return res.json({ success: true, data: rows });
+                // Devolver datos de TODAS las tablas
+                const allData = {};
+                for (const t of ALLOWED_TABLES) {
+                    try {
+                        const rows = await query(`SELECT * FROM ${t} ORDER BY id DESC LIMIT 1000`);
+                        allData[t] = rows;
+                    } catch (e) {
+                        allData[t] = [];
+                    }
+                }
+                return res.json({ success: true, data: allData });
             }
             case 'create_record': {
                 const data = req.body.data || req.body;
