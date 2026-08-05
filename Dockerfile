@@ -29,7 +29,8 @@ COPY --from=builder /app/package.json /app/package.json
 
 # Instalar SOLO dependencias de producción (express, mysql2, cors)
 # También instalamos serve como fallback
-RUN npm install --omit=dev express mysql2 cors serve 2>&1 | tail -5
+# IMPORTANTE: --no-cache fuerza invalidar el cache de Docker
+RUN npm install --omit=dev --no-cache express mysql2 cors serve 2>&1 | tail -5
 
 # Copiar el código del servidor
 COPY --from=builder /app/server/ /app/server/
