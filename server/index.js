@@ -299,7 +299,8 @@ app.all('/api.php', async (req, res) => {
 // ============================================================
 // Servir archivos estáticos del frontend
 // ============================================================
-app.use(express.static(path.join(__dirname, 'dist')));
+// Servir el dist desde /app/dist (no desde /app/server/dist)
+app.use(express.static(path.join(__dirname, '..', 'dist')));
 
 // SPA fallback: redirigir todas las rutas no-API al index.html
 app.use((req, res, next) => {
