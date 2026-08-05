@@ -46,7 +46,7 @@ window.Store = (() => {
     }
   }
 
-  const API_URL = 'api.php';
+  const API_URL = '/api.php';
 
   async function _apiCall(action, collection, body = null) {
     try {
