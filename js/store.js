@@ -49,29 +49,8 @@ window.Store = (() => {
   const API_URL = '/api.php'; // No hay backend, siempre fallará silenciosamente
 
   async function _apiCall(action, collection, body = null) {
-    try {
-      const options = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      };
-      if (body) {
-        options.body = JSON.stringify(body);
-      }
-      const res = await fetch(`${API_URL}?action=${action}&collection=${collection}`, options);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const result = await _parseJsonResponse(res);
-      if (!result.success) {
-        throw new Error(result.error || 'Unknown error');
-      }
-      return result;
-    } catch (err) {
-      console.error(`API Error during ${action} on ${collection}:`, err);
-      if (window.Helpers && typeof window.Helpers.showToast === 'function') {
-        window.Helpers.showToast(`Error de sincronización: ${err.message}`, 'error');
-      }
-    }
+    // Modo standalone: no hay backend, no sincronizar
+    return { success: true, offline: true };
   }
 
   async function syncFromDatabase() {
