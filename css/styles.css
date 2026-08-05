@@ -1536,19 +1536,6 @@ select.form-input {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* ---- Bottom navigation (móvil) ---- */
-.bottom-nav {
-  display: none;
-}
-
-.mobile-menu-overlay {
-  display: none;
-}
-
-.mobile-menu {
-  display: none;
-}
-
 /* ---- Print ---- */
 @media print {
   .sidebar, .sidebar-toggle, .btn, .toast-container, .modal-overlay {
