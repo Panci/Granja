@@ -15,6 +15,7 @@ Aplicación web responsive para gestión de granjas, clínicas y refugios de ani
 - **Producción** — Control de producción (huevos, leche, etc.)
 - **Finanzas** — Gastos categorizados por especie o grupo
 - **Responsive** — Sidebar en PC, barra inferior en móvil
+- **Tema día/noche** — Alterna entre modo claro y oscuro con persistencia
 - **Offline-first** — Funciona con localStorage cuando no hay backend
 - **Búsqueda + paginación** en todas las tablas
 - **Sincronización con SQLite** persistente en VPS
@@ -55,7 +56,8 @@ Granja/
 │   │   └── finanzas.js
 │   └── utils/
 │       ├── helpers.js
-│       └── charts.js
+│       ├── charts.js
+│       └── theme.js        # Gestor de tema día/noche
 ├── server/
 │   └── index.js            # Backend Express + SQLite
 ├── Dockerfile              # Build multi-stage
@@ -187,6 +189,50 @@ La app se adapta automáticamente:
 
 ---
 
+## 🌓 Tema Día / Noche
+
+La aplicación incluye un modo claro y un modo oscuro alternables en tiempo real.
+
+### Cómo se activa
+
+Hay **tres puntos** desde los que se puede cambiar el tema:
+
+| Ubicación | Visibilidad |
+|---|---|
+| Botón flotante ☀️/🌙 | Siempre visible (esquina sup. derecha en PC, sobre la barra inferior en móvil) |
+| Item "Modo claro / Modo oscuro" en el sidebar | Visible en PC |
+| Item "Modo claro / Modo oscuro" en el menú "Más" | Visible en móvil |
+
+### Persistencia
+
+- La elección se guarda en `localStorage` bajo la clave `erp_theme` (`dark` / `light`).
+- Si el usuario nunca ha elegido un tema, se respeta la preferencia del sistema operativo (`prefers-color-scheme`).
+- El script inline de [index.html](file:///c:/Users/usuario/Repositorio/Granja/index.html) aplica el tema **antes** del primer render para evitar el "flash" del modo oscuro.
+
+### Implementación
+
+- Módulo [`js/utils/theme.js`](file:///c:/Users/usuario/Repositorio/Granja/js/utils/theme.js) — expone `Theme.init/get/set/apply/toggle`.
+- Estilos en [css/styles.css](file:///c:/Users/usuario/Repositorio/Granja/css/styles.css) — variables CSS en `:root` (oscuro) y `[data-theme="light"]` (claro).
+- El SVG de los gráficos ([js/utils/charts.js](file:///c:/Users/usuario/Repositorio/Granja/js/utils/charts.js)) usa `var(--chart-grid)` y `var(--chart-dot-stroke)` para que las líneas y puntos se adapten también al tema.
+
+### Probar manualmente
+
+En la consola del navegador:
+
+```js
+// Aplicar modo claro
+document.documentElement.setAttribute('data-theme', 'light');
+
+// Aplicar modo oscuro
+document.documentElement.setAttribute('data-theme', 'dark');
+
+// Limpiar preferencia guardada y volver a la del sistema
+localStorage.removeItem('erp_theme');
+location.reload();
+```
+
+---
+
 ## 🔑 Variables de Entorno
 
 El servidor Express acepta:
@@ -244,6 +290,16 @@ Para HTTPS automático en producción: configurar Let's Encrypt en Dokploy o usa
 2. En móvil: usar **navegación privada** o **borrar caché**
 3. En PC: **Ctrl+F5**
 
+### No aparece el botón de cambio de tema
+1. Confirmar que se ha hecho **Rebuild** en Dokploy (no Deploy) tras un push.
+2. Si el log de build muestra `CACHED` en `RUN npm run build`, bumear el valor `CACHEBUST` en [Dockerfile](file:///c:/Users/usuario/Repositorio/Granja/Dockerfile) (`ARG CACHEBUST=...`) y volver a pushear.
+3. En el navegador, abrir **DevTools → Elements** y comprobar que existe el elemento `<button id="themeFabStatic">`. Si está, el problema es de CSS; si no está, el build no incluye los cambios.
+4. Limpiar `localStorage` para descartar preferencias corruptas: `localStorage.removeItem('erp_theme')`.
+
+### El tema no cambia al pulsar el botón
+1. Abrir **DevTools → Console** y comprobar que `Theme.toggle()` está disponible: escribir `Theme.toggle()` y pulsar Enter. Debe cambiar `data-theme` en `<html>`.
+2. Si da error de "Theme is not defined", el bundle no incluye `js/utils/theme.js` — revisar `main.js`.
+
 ### MariaDB / MySQL no funciona
 El VPS puede no tener acceso a Docker Hub. **Solución:** usar SQLite (incluido), no necesita descargar imágenes.
 
@@ -251,14 +307,21 @@ El VPS puede no tener acceso a Docker Hub. **Solución:** usar SQLite (incluido)
 
 ## 📜 Changelog
 
-### v21 (actual)
+### v24 (actual)
+- ✅ **Tema día/noche** alternable con persistencia en `localStorage`
+- ✅ Botón flotante ☀️/🌙 siempre visible (escritorio y móvil)
+- ✅ Variables CSS para tema claro/oscuro aplicadas a sidebar, modal, gráficos y scrollbar
+- ✅ Script inline anti-flash del tema antes del primer render
 - ✅ Backend Express + SQLite (sin MariaDB)
 - ✅ Deploy con Compose + Traefik + healthcheck
-- ✅ **Barra inferior móvil** (responsive design)
+- ✅ Barra inferior móvil (responsive design)
 - ✅ Menú "Más" con Reproducción/Finanzas/Exportar/Importar
 - ✅ Sidebar oculta en móvil
 - ✅ Headers anti-caché
 - ✅ Persistencia en volumen Docker
+
+### v21–v23
+- Ajustes de responsive y UX sin cambios de tema
 
 ### v18-v20
 - ❌ MariaDB (no accesible al Docker Hub del VPS)
