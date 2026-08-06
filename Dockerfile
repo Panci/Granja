@@ -1,8 +1,13 @@
 # ============================================================
-# Dockerfile v22 - Express + MariaDB + Frontend
-# Build: 2026-08-06 — invalida caché para incluir cambios de tema día/noche.
+# Dockerfile v23 - Express + MariaDB + Frontend
+# Build: 2026-08-06 v23 — tema día/noche (theme toggle).
 # ============================================================
+# ARG CACHEBUST — cualquier cambio aquí invalida TODAS las capas de caché.
+# Cambia el timestamp para forzar una build limpia.
+ARG CACHEBUST=2026-08-06-v23
+
 FROM node:22-alpine AS builder
+ARG CACHEBUST
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
@@ -10,6 +15,7 @@ COPY . .
 RUN npm run build
 
 FROM node:22-alpine AS production
+ARG CACHEBUST
 WORKDIR /app
 
 COPY --from=builder /app/package.json /app/package.json
@@ -29,4 +35,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
-CMD ["sh", "-c", "echo '🐾 v20 - Iniciando Express + MariaDB' && exec node server/index.js"]
+CMD ["sh", "-c", "echo '🐾 v23 - Iniciando Express + MariaDB' && exec node server/index.js"]
