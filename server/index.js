@@ -1,5 +1,5 @@
 // ============================================================
-// ERP Animal — Backend con SQLite
+// ERP Animal — Backend con SQLite v24
 // ============================================================
 // BD persistente en archivo del VPS (volume Docker).
 // Acceso desde cualquier dispositivo.

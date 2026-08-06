@@ -1,10 +1,10 @@
 # ============================================================
-# Dockerfile v23 - Express + MariaDB + Frontend
-# Build: 2026-08-06 v23 — tema día/noche (theme toggle).
+# Dockerfile v24 - Express + SQLite + Frontend
+# Build: 2026-08-06 v24 — tema día/noche (theme toggle) + BD SQLite.
 # ============================================================
 # ARG CACHEBUST — cualquier cambio aquí invalida TODAS las capas de caché.
 # Cambia el timestamp para forzar una build limpia.
-ARG CACHEBUST=2026-08-06-v23
+ARG CACHEBUST=2026-08-06-v24
 
 FROM node:22-alpine AS builder
 ARG CACHEBUST
@@ -35,4 +35,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
-CMD ["sh", "-c", "echo '🐾 v23 - Iniciando Express + MariaDB' && exec node server/index.js"]
+CMD ["sh", "-c", "echo '🐾 v24 - Iniciando Express + SQLite' && exec node server/index.js"]
