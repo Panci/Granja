@@ -1,5 +1,6 @@
 # ============================================================
-# Dockerfile v20 - Express + MariaDB + Frontend
+# Dockerfile v22 - Express + MariaDB + Frontend
+# Build: 2026-08-06 — invalida caché para incluir cambios de tema día/noche.
 # ============================================================
 FROM node:22-alpine AS builder
 WORKDIR /app

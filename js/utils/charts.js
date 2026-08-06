@@ -42,7 +42,7 @@ window.Charts = (() => {
     for (let i = 0; i <= 4; i++) {
       const y = padding.top + (chartH / 4) * i;
       const val = Math.round(maxVal - (maxVal / 4) * i);
-      svg += `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+      svg += `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="var(--chart-grid, rgba(255,255,255,0.07))" stroke-width="1"/>`;
       svg += `<text x="${padding.left - 8}" y="${y + 4}" text-anchor="end" class="chart-label">${val}</text>`;
     }
 
@@ -191,7 +191,7 @@ window.Charts = (() => {
     for (let i = 0; i <= 4; i++) {
       const y = padding.top + (chartH / 4) * i;
       const val = Math.round(maxVal - (maxVal / 4) * i);
-      svg += `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="rgba(255,255,255,0.07)"/>`;
+      svg += `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="var(--chart-grid, rgba(255,255,255,0.07))"/>`;
       svg += `<text x="${padding.left - 8}" y="${y + 4}" text-anchor="end" class="chart-label">${val}</text>`;
     }
 
@@ -201,7 +201,7 @@ window.Charts = (() => {
     // Dots + Labels
     points.forEach((p, i) => {
       if (showDots) {
-        svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${lineColor}" stroke="#1a1b26" stroke-width="2" class="chart-dot"/>`;
+        svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${lineColor}" stroke="var(--chart-dot-stroke, #1a1b26)" stroke-width="2" class="chart-dot"/>`;
       }
       if (data.length <= 15) {
         svg += `<text x="${p.x}" y="${height - padding.bottom + 16}" text-anchor="middle" class="chart-label">${p.label}</text>`;

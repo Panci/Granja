@@ -18,11 +18,13 @@ window.App = (() => {
   };
 
   async function init() {
+    // Aplica el tema persistido (o el del sistema) lo antes posible.
+    Theme.apply(Theme.get());
     // Intentar sincronizar con BD, pero continuar si falla
     try {
       await Store.syncFromDatabase();
     } catch (e) {
-      console.log('📦 Modo offline - usando localStorage');
+      console.log('�� Modo offline - usando localStorage');
     }
     Store.initDefaultSpecies();
     _renderShell();
@@ -34,6 +36,9 @@ window.App = (() => {
     const app = document.getElementById('app');
     app.innerHTML = `
       <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+      <button class="theme-fab" data-theme-toggle onclick="App.toggleTheme()" aria-label="Cambiar tema" title="Cambiar tema">
+        <span data-theme-icon>☀️</span>
+      </button>
       <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
       <div class="app-layout">
@@ -62,6 +67,10 @@ window.App = (() => {
           </nav>
 
           <div class="sidebar-footer">
+            <div class="nav-item" data-theme-toggle onclick="App.toggleTheme()">
+              <span class="nav-icon" data-theme-icon>☀️</span>
+              <span class="nav-label" data-theme-label>Modo claro</span>
+            </div>
             <div class="nav-item" onclick="App.exportData()">
               <span class="nav-icon">💾</span>
               <span class="nav-label">Exportar Datos</span>
@@ -121,6 +130,10 @@ window.App = (() => {
           <span class="mobile-menu-label">Finanzas</span>
         </div>
         <div class="mobile-menu-divider"></div>
+        <div class="mobile-menu-item" data-theme-toggle onclick="App.toggleTheme(); App.closeMobileMenu();">
+          <span class="mobile-menu-icon" data-theme-icon>☀️</span>
+          <span class="mobile-menu-label" data-theme-label>Modo claro</span>
+        </div>
         <div class="mobile-menu-item" onclick="App.exportData(); App.closeMobileMenu();">
           <span class="mobile-menu-icon">💾</span>
           <span class="mobile-menu-label">Exportar Datos</span>
@@ -485,12 +498,23 @@ window.App = (() => {
     input.click();
   }
 
+  // ---- Theme toggle (día/noche) ----
+
+  function toggleTheme() {
+    const newTheme = Theme.toggle();
+    Helpers.showToast(
+      newTheme === 'light' ? 'Tema claro activado' : 'Tema oscuro activado',
+      'info'
+    );
+  }
+
   return {
     init,
     navigateTo,
     refreshModule,
     exportData,
     importData,
+    toggleTheme,
     handlePageClick,
     toggleMobileMenu,
     closeMobileMenu,

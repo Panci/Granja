@@ -2,6 +2,7 @@
 import './css/styles.css';
 
 import './js/store.js';
+import './js/utils/theme.js';
 import './js/utils/helpers.js';
 import './js/utils/charts.js';
 import './js/modules/inventario.js';

@@ -12,7 +12,29 @@
 </head>
 <body>
 
+  <button class="theme-fab-static" id="themeFabStatic" onclick="App && App.toggleTheme && App.toggleTheme()" aria-label="Cambiar tema día/noche" title="Cambiar tema día/noche">
+    <span id="themeFabStaticIcon">☀️</span>
+  </button>
+
   <div id="app"></div>
+
+  <script>
+    // Aplica el tema antes del primer render para evitar un "flash" del tema oscuro.
+    (function () {
+      try {
+        var stored = localStorage.getItem('erp_theme');
+        var theme = (stored === 'light' || stored === 'dark')
+          ? stored
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+        // Actualiza el icono del botón estático para reflejar el tema actual.
+        var icon = document.getElementById('themeFabStaticIcon');
+        if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 
   <script type="module" src="/main.js"></script>
 
