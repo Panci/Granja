@@ -209,6 +209,9 @@ app.use(helmet({
       "style-src": ["'self'", "'unsafe-inline'"],
       "img-src": ["'self'", 'data:'],
       "connect-src": ["'self'"],
+      // La aplicación puede publicarse temporalmente por HTTP en el puerto
+      // del VPS; al usar un dominio con HTTPS, el proxy se encarga de TLS.
+      "upgrade-insecure-requests": null,
     },
   },
   crossOriginEmbedderPolicy: false,
