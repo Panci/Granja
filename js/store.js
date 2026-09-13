@@ -6,6 +6,8 @@
 window.Store = (() => {
   const PREFIX = 'erp_';
   const listeners = {};
+  let authenticated = false;
+  const TOMBSTONES_KEY = `${PREFIX}_tombstones`;
 
   // ---- Internal helpers ----
 
@@ -28,83 +30,139 @@ window.Store = (() => {
     _emit(collection);
   }
 
-  // ---- Parseo seguro de respuestas del servidor ----
-  // Lee la respuesta como texto y valida que sea JSON válido.
-  // Si PHP devuelve HTML (warnings, errores), lanza un error descriptivo
-  // en lugar de un SyntaxError críptico.
+  function _readTombstones() {
+    try {
+      const value = JSON.parse(localStorage.getItem(TOMBSTONES_KEY) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function _writeTombstones(tombstones) {
+    localStorage.setItem(TOMBSTONES_KEY, JSON.stringify(tombstones));
+  }
+
+  function _queueDeletion(collection, id) {
+    const tombstones = _readTombstones().filter(item => !(item.collection === collection && item.id === id));
+    tombstones.push({ collection, id, deletedAt: new Date().toISOString() });
+    _writeTombstones(tombstones);
+  }
+
+  function _resolveDeletion(collection, id) {
+    _writeTombstones(_readTombstones().filter(item => item.collection !== collection || item.id !== id));
+  }
+
+  // ---- API autenticada ----
   async function _parseJsonResponse(res) {
     const text = await res.text();
     try {
       return JSON.parse(text);
     } catch {
-      // Detectar si el servidor devolvió HTML (error de PHP)
       const preview = text.substring(0, 200).trim();
-      if (preview.startsWith('<') || preview.includes('<br') || preview.includes('<b>')) {
-        throw new Error(`El servidor devolvió HTML en lugar de JSON. Posible error de PHP en el servidor.`);
-      }
       throw new Error(`Respuesta del servidor no es JSON válido: ${preview}`);
     }
   }
 
-  const API_URL = '/api.php'; // No hay backend, siempre fallará silenciosamente
-
-  async function _apiCall(action, collection, body = null) {
-    try {
-      const options = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      };
-      if (body) {
-        options.body = JSON.stringify(body);
-      }
-      const res = await fetch(`${API_URL}?action=${action}&collection=${collection}`, options);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const result = await _parseJsonResponse(res);
-      if (!result.success) {
-        throw new Error(result.error || 'Unknown error');
-      }
-      return result;
-    } catch (err) {
-      console.warn(`⚠️  Sync failed (${action}/${collection}):`, err.message);
-      // No mostrar toast, solo log silencioso
-      return { success: false, offline: true };
+  async function _request(url, options = {}) {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    const result = await _parseJsonResponse(response);
+    if (!response.ok || !result.success) {
+      const error = new Error(result.error || `HTTP ${response.status}`);
+      error.status = response.status;
+      if (response.status === 401) authenticated = false;
+      throw error;
     }
+    return result;
+  }
+
+  async function checkSession() {
+    try {
+      const result = await _request('/api/auth/session');
+      authenticated = Boolean(result.authenticated);
+      return authenticated;
+    } catch {
+      authenticated = false;
+      return false;
+    }
+  }
+
+  async function login(password) {
+    const result = await _request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    authenticated = result.success;
+    return authenticated;
+  }
+
+  async function logout() {
+    try {
+      await _request('/api/auth/logout', { method: 'POST' });
+    } finally {
+      authenticated = false;
+    }
+  }
+
+  async function _apiCall(collection, method, body = null, id = null) {
+    if (!authenticated) return { success: false, unauthorized: true };
+    try {
+      const suffix = id ? `/${encodeURIComponent(id)}` : '';
+      return await _request(`/api/${collection}${suffix}`, {
+        method,
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+    } catch (err) {
+      console.warn(`No se pudo sincronizar ${collection}:`, err.message);
+      return { success: false, offline: err.status !== 401, unauthorized: err.status === 401 };
+    }
+  }
+
+  function _isNewer(left, right) {
+    return new Date(left?._updatedAt || 0).getTime() > new Date(right?._updatedAt || 0).getTime();
   }
 
   async function syncFromDatabase() {
+    if (!authenticated) return false;
     try {
-      const res = await fetch(`${API_URL}?action=fetch_all&_t=${new Date().getTime()}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-      if (!res.ok) {
-        console.log('📦 BD no disponible, usando localStorage');
-        return false;
-      }
-      const result = await _parseJsonResponse(res);
-      if (result.success && result.data) {
-        // El backend devuelve { data: { animals: [...], feeding: [...] } }
-        const data = result.data.data || result.data;
-        const collections = Object.keys(ID_PREFIXES);
-        collections.forEach(col => {
-          if (Array.isArray(data[col])) {
-            localStorage.setItem(_key(col), JSON.stringify(data[col]));
-            _emit(col);
-          }
+      const result = await _request('/api/sync', { cache: 'no-store' });
+      const remoteData = result.data || {};
+      for (const collection of Object.keys(ID_PREFIXES)) {
+        const pendingDeletions = _readTombstones().filter(item => item.collection === collection);
+        const deletionResults = await Promise.all(pendingDeletions.map(item => _apiCall(collection, 'DELETE', null, item.id)));
+        deletionResults.forEach((result, index) => {
+          if (result.success) _resolveDeletion(collection, pendingDeletions[index].id);
         });
-        console.log('✅ Sincronizado con BD');
-        return true;
+        const deletedIds = new Set(pendingDeletions.map(item => item.id));
+        const local = _read(collection).filter(record => !deletedIds.has(record.id));
+        const byId = new Map((remoteData[collection] || [])
+          .filter(record => !deletedIds.has(record.id))
+          .map(record => [record.id, record]));
+        const pending = [];
+        for (const record of local) {
+          const remote = byId.get(record.id);
+          if (!remote || _isNewer(record, remote)) {
+            byId.set(record.id, record);
+            pending.push(_apiCall(collection, 'POST', record));
+          }
+        }
+        _write(collection, Array.from(byId.values()));
+        await Promise.all(pending);
       }
-      return false;
+      return true;
     } catch (err) {
-      console.log('📦 Modo offline (localStorage)');
+      console.warn('No se pudo sincronizar con el servidor:', err.message);
       return false;
     }
   }
-
-
   function _emit(collection) {
     if (listeners[collection]) {
       listeners[collection].forEach(fn => fn(_read(collection)));
@@ -164,8 +222,7 @@ window.Store = (() => {
     data.push(item);
     _write(collection, data);
     
-    // Sync to remote MySQL database in the background
-    _apiCall('create', collection, item);
+    _apiCall(collection, 'POST', item);
     
     return item;
   }
@@ -180,8 +237,8 @@ window.Store = (() => {
     data[index] = updatedItem;
     _write(collection, data);
     
-    // Sync to remote MySQL database in the background
-    _apiCall('update', collection, { id, ...updates, _updatedAt: now });
+    // Se envía el registro completo: el backend nunca sustituye campos por un parche.
+    _apiCall(collection, 'POST', updatedItem);
     
     return data[index];
   }
@@ -192,8 +249,10 @@ window.Store = (() => {
     if (filtered.length === data.length) return false;
     _write(collection, filtered);
     
-    // Sync delete to remote MySQL database in the background
-    _apiCall('delete', collection, { id });
+    _queueDeletion(collection, id);
+    _apiCall(collection, 'DELETE', null, id).then(result => {
+      if (result.success) _resolveDeletion(collection, id);
+    });
     
     return true;
   }
@@ -244,8 +303,12 @@ window.Store = (() => {
         }
       });
       
-      // Sincronizar importación completa con la base de datos MySQL
-      _apiCall('import', '', allData);
+      if (authenticated) {
+        _request('/api/import', {
+          method: 'POST',
+          body: JSON.stringify(allData),
+        }).catch(err => console.warn('No se pudo sincronizar el backup:', err.message));
+      }
       
       return true;
     } catch (e) {
@@ -297,5 +360,9 @@ window.Store = (() => {
     downloadBackup,
     initDefaultSpecies,
     syncFromDatabase,
+    checkSession,
+    login,
+    logout,
+    isAuthenticated: () => authenticated,
   };
 })();

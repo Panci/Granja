@@ -83,7 +83,7 @@ window.Finanzas = (() => {
             <input type="month" class="form-input form-input-sm" value="${year}-${String(month + 1).padStart(2, '0')}" onchange="Finanzas.setMonth(this.value)">
             <select class="form-input form-input-sm" onchange="Finanzas.setFilter('grupo', this.value)">
               <option value="">Todos los grupos</option>
-              ${species.map(sp => `<option value="${sp.nombre}" ${filterGrupo === sp.nombre ? 'selected' : ''}>${sp.icono} ${sp.nombre}</option>`).join('')}
+              ${species.map(sp => `<option value="${Helpers.escapeHtml(sp.nombre)}" ${filterGrupo === sp.nombre ? 'selected' : ''}>${Helpers.escapeHtml(sp.icono)} ${Helpers.escapeHtml(sp.nombre)}</option>`).join('')}
             </select>
             <select class="form-input form-input-sm" onchange="Finanzas.setFilter('categoria', this.value)">
               <option value="">Todas las categorías</option>
@@ -133,8 +133,8 @@ window.Finanzas = (() => {
       emptyIcon: '��',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay gastos registrados en este periodo',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Finanzas.openForm('${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Finanzas.confirmDelete('${row.id}')">��️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Finanzas.openForm(${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Finanzas.confirmDelete(${Helpers.jsArg(row.id)})">��️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Finanzas.goToPage');
   }
@@ -165,7 +165,7 @@ window.Finanzas = (() => {
           <label class="form-label">Grupo (Especie)</label>
           <select class="form-input" id="f_grupo">
             <option value="">🏠 General</option>
-            ${species.map(sp => `<option value="${sp.nombre}" ${existing?.grupo === sp.nombre ? 'selected' : ''}>${sp.icono} ${sp.nombre}</option>`).join('')}
+            ${species.map(sp => `<option value="${Helpers.escapeHtml(sp.nombre)}" ${existing?.grupo === sp.nombre ? 'selected' : ''}>${Helpers.escapeHtml(sp.icono)} ${Helpers.escapeHtml(sp.nombre)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">

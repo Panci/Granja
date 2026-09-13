@@ -1,327 +1,356 @@
-// ============================================================
-// ERP Animal — Backend con SQLite v24
-// ============================================================
-// BD persistente en archivo del VPS (volume Docker).
-// Acceso desde cualquier dispositivo.
-// ============================================================
+// ERP Animal — API Express + SQLite
+// Los datos se sirven solo al mismo origen y requieren una sesión autenticada.
 
+'use strict';
+
+const crypto = require('crypto');
 const express = require('express');
-const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-
-// Configuración SQLite
-const DB_PATH = process.env.DB_PATH || '/app/data/erp_animal.db';
+const DB_PATH = process.env.DB_PATH || path.resolve(process.cwd(), 'data', 'erp_animal.db');
+const COOKIE_NAME = 'erp_session';
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const MAX_RECORD_BYTES = 256 * 1024;
+const ID_PATTERN = /^[A-Z]{3}-[0-9]{3,}$/;
+const COLLECTIONS = [
+  'animals', 'vacunas', 'desparasitaciones', 'tratamientos', 'dietas',
+  'tareas', 'reproduccion', 'produccion', 'gastos', 'especies',
+];
 
 let db = null;
+const loginAttempts = new Map();
 
-// ============================================================
-// Funciones de BD
-// ============================================================
-function initDB() {
-    try {
-        // Crear directorio si no existe
-        const dir = path.dirname(DB_PATH);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-
-        db = new Database(DB_PATH);
-        db.pragma('journal_mode = WAL');
-
-        // Crear tablas si no existen
-        const tables = [
-            `CREATE TABLE IF NOT EXISTS animals (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-            `CREATE TABLE IF NOT EXISTS feeding (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-            `CREATE TABLE IF NOT EXISTS health (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-            `CREATE TABLE IF NOT EXISTS reproduction (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-            `CREATE TABLE IF NOT EXISTS production (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-            `CREATE TABLE IF NOT EXISTS finances (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-        ];
-
-        for (const sql of tables) {
-            db.exec(sql);
-        }
-
-        console.log('✅ SQLite inicializado correctamente');
-        console.log(`   DB_PATH: ${DB_PATH}`);
-
-        // Listar tablas existentes
-        const existingTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-        console.log(`   Tablas: ${existingTables.map(t => t.name).join(', ')}`);
-    } catch (err) {
-        console.error('❌ Error inicializando SQLite:', err.message);
-        db = null;
-    }
+function requireSecret(name, minimumLength) {
+  const value = process.env[name];
+  if (!value || value.length < minimumLength) {
+    throw new Error(`${name} debe estar definido y tener al menos ${minimumLength} caracteres.`);
+  }
+  return value;
 }
 
-// ============================================================
-// Middleware
-// ============================================================
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+function getSecrets() {
+  return {
+    password: requireSecret('ADMIN_PASSWORD', 12),
+    sessionSecret: requireSecret('SESSION_SECRET', 32),
+  };
+}
 
-// Log de requests
-app.use((req, res, next) => {
-    if (!req.path.startsWith('/assets')) {
-        console.log(`📥 ${req.method} ${req.path}`);
+function initDB() {
+  if (db) return db;
+  const dir = path.dirname(DB_PATH);
+  fs.mkdirSync(dir, { recursive: true });
+  db = new DatabaseSync(DB_PATH);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
+
+  for (const collection of COLLECTIONS) {
+    db.exec(`CREATE TABLE IF NOT EXISTS ${collection} (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`);
+  }
+  return db;
+}
+
+function closeDB() {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
+
+function assertCollection(collection) {
+  if (!COLLECTIONS.includes(collection)) {
+    const error = new Error('Colección no permitida');
+    error.status = 404;
+    throw error;
+  }
+}
+
+function parseStoredRecord(row) {
+  try {
+    return JSON.parse(row.data);
+  } catch {
+    return { id: row.id };
+  }
+}
+
+function getRecord(collection, id) {
+  return db.prepare(`SELECT id, data FROM ${collection} WHERE id = ?`).get(id);
+}
+
+function validateAndPrepareRecord(record, existingRow) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    const error = new Error('El registro debe ser un objeto JSON');
+    error.status = 400;
+    throw error;
+  }
+  if (typeof record.id !== 'string' || !ID_PATTERN.test(record.id)) {
+    const error = new Error('ID de registro inválido');
+    error.status = 400;
+    throw error;
+  }
+
+  const now = new Date().toISOString();
+  const existing = existingRow ? parseStoredRecord(existingRow) : null;
+  const normalized = {
+    ...(existing || {}),
+    ...record,
+    id: record.id,
+    _createdAt: existing?._createdAt || record._createdAt || now,
+    _updatedAt: now,
+  };
+  const serialized = JSON.stringify(normalized);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_RECORD_BYTES) {
+    const error = new Error('El registro supera el tamaño máximo permitido');
+    error.status = 413;
+    throw error;
+  }
+  return { normalized, serialized, now };
+}
+
+function upsertRecord(collection, record) {
+  const existing = getRecord(collection, record.id);
+  const { normalized, serialized, now } = validateAndPrepareRecord(record, existing);
+  db.prepare(`INSERT INTO ${collection} (id, data, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`)
+    .run(normalized.id, serialized, normalized._createdAt, now);
+  return normalized;
+}
+
+function signSession(expiresAt, secret) {
+  return crypto.createHmac('sha256', secret).update(`erp-session:${expiresAt}`).digest('base64url');
+}
+
+function createSessionToken(secret) {
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  return `${expiresAt}.${signSession(expiresAt, secret)}`;
+}
+
+function isValidSession(token, secret) {
+  if (typeof token !== 'string') return false;
+  const [expiresAtText, signature] = token.split('.');
+  const expiresAt = Number(expiresAtText);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || !signature) return false;
+  const expected = signSession(expiresAt, secret);
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+function validPassword(password, expected) {
+  const received = Buffer.from(String(password || ''));
+  const expectedBuffer = Buffer.from(expected);
+  return received.length === expectedBuffer.length && crypto.timingSafeEqual(received, expectedBuffer);
+}
+
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: SESSION_TTL_MS,
+    path: '/',
+  };
+}
+
+function clientIp(req) {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+function loginAllowed(ip) {
+  const now = Date.now();
+  const current = loginAttempts.get(ip);
+  if (!current || current.resetAt <= now) return true;
+  return current.count < 5;
+}
+
+function recordFailedLogin(ip) {
+  const now = Date.now();
+  const current = loginAttempts.get(ip);
+  if (!current || current.resetAt <= now) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  } else {
+    current.count += 1;
+  }
+}
+
+function requireAuth(req, res, next) {
+  try {
+    const { sessionSecret } = getSecrets();
+    if (!isValidSession(req.cookies[COOKIE_NAME], sessionSecret)) {
+      return res.status(401).json({ success: false, error: 'Autenticación requerida' });
     }
     next();
-});
+  } catch (error) {
+    next(error);
+  }
+}
 
-// ============================================================
-// API: Health check
-// ============================================================
-// Health check
+app.disable('x-powered-by');
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "script-src": ["'self'", "'unsafe-inline'"],
+      // La interfaz heredada conserva manejadores onclick. Los datos dinámicos
+      // se serializan/escapan antes de llegar a esos manejadores.
+      "script-src-attr": ["'unsafe-inline'"],
+      "style-src": ["'self'", "'unsafe-inline'"],
+      "img-src": ["'self'", 'data:'],
+      "connect-src": ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(express.json({ limit: '5mb' }));
+app.use(cookieParser());
+
 app.get('/api/health', (req, res) => {
-    const dbStatus = db ? 'connected' : 'disconnected';
-    res.json({
-        status: 'ok',
-        db: dbStatus,
-        version: 'v21-mobile',
-        timestamp: new Date().toISOString(),
-    });
+  res.json({ status: db ? 'ok' : 'degraded', database: Boolean(db) });
 });
 
-// ============================================================
-// API: CRUD genérico
-// ============================================================
-const ALLOWED_TABLES = ['animals', 'feeding', 'health', 'reproduction', 'production', 'finances'];
-
-// GET /api/:table - Listar todos
-app.get('/api/:table', (req, res) => {
-    const table = req.params.table;
-    if (!ALLOWED_TABLES.includes(table)) {
-        return res.status(400).json({ success: false, error: 'Tabla no permitida' });
+app.post('/api/auth/login', (req, res, next) => {
+  try {
+    const ip = clientIp(req);
+    if (!loginAllowed(ip)) {
+      return res.status(429).json({ success: false, error: 'Demasiados intentos. Inténtalo más tarde.' });
     }
+    const { password, sessionSecret } = getSecrets();
+    if (!validPassword(req.body?.password, password)) {
+      recordFailedLogin(ip);
+      return res.status(401).json({ success: false, error: 'Contraseña incorrecta' });
+    }
+    loginAttempts.delete(ip);
+    res.cookie(COOKIE_NAME, createSessionToken(sessionSecret), cookieOptions());
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/auth/session', (req, res, next) => {
+  try {
+    const { sessionSecret } = getSecrets();
+    res.json({ success: true, authenticated: isValidSession(req.cookies[COOKIE_NAME], sessionSecret) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path: '/' });
+  res.json({ success: true });
+});
+
+app.use('/api', requireAuth);
+
+app.get('/api/sync', (req, res) => {
+  const data = {};
+  for (const collection of COLLECTIONS) {
+    const rows = db.prepare(`SELECT id, data FROM ${collection} ORDER BY updated_at DESC`).all();
+    data[collection] = rows.map(parseStoredRecord);
+  }
+  res.json({ success: true, data });
+});
+
+app.post('/api/import', (req, res, next) => {
+  try {
+    const imported = req.body;
+    if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+      return res.status(400).json({ success: false, error: 'Backup inválido' });
+    }
+    db.exec('BEGIN IMMEDIATE');
     try {
-        if (!db) {
-            return res.json({ success: true, data: [] });
+      let saved = 0;
+      for (const collection of COLLECTIONS) {
+        const records = imported[collection];
+        if (!Array.isArray(records)) continue;
+        for (const record of records) {
+          upsertRecord(collection, record);
+          saved += 1;
         }
-        const rows = db.prepare(`SELECT id, data FROM ${table} ORDER BY updated_at DESC`).all();
-        const items = rows.map(row => {
-            try {
-                return JSON.parse(row.data);
-            } catch {
-                return { id: row.id };
-            }
-        });
-        res.json({ success: true, data: items });
-    } catch (err) {
-        console.error(`Error GET /api/${table}:`, err.message);
-        res.status(500).json({ success: false, error: err.message });
+      }
+      db.exec('COMMIT');
+      res.json({ success: true, saved });
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
     }
+  } catch (error) {
+    next(error);
+  }
 });
 
-// POST /api/:table - Crear o actualizar
-app.post('/api/:table', (req, res) => {
-    const table = req.params.table;
-    if (!ALLOWED_TABLES.includes(table)) {
-        return res.status(400).json({ success: false, error: 'Tabla no permitida' });
-    }
-    try {
-        if (!db) {
-            return res.json({ success: true, offline: true });
-        }
-        const data = req.body;
-        if (!data || !data.id) {
-            return res.status(400).json({ success: false, error: 'Falta id' });
-        }
-        const stmt = db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`);
-        stmt.run(data.id, JSON.stringify(data));
-        res.json({ success: true, id: data.id });
-    } catch (err) {
-        console.error(`Error POST /api/${table}:`, err.message);
-        res.status(500).json({ success: false, error: err.message });
-    }
+app.get('/api/:collection', (req, res, next) => {
+  try {
+    const { collection } = req.params;
+    assertCollection(collection);
+    const rows = db.prepare(`SELECT id, data FROM ${collection} ORDER BY updated_at DESC`).all();
+    res.json({ success: true, data: rows.map(parseStoredRecord) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// DELETE /api/:table/:id
-app.delete('/api/:table/:id', (req, res) => {
-    const table = req.params.table;
-    const id = req.params.id;
-    if (!ALLOWED_TABLES.includes(table)) {
-        return res.status(400).json({ success: false, error: 'Tabla no permitida' });
-    }
-    try {
-        if (!db) {
-            return res.json({ success: true, offline: true });
-        }
-        db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
-        res.json({ success: true });
-    } catch (err) {
-        console.error(`Error DELETE /api/${table}/${id}:`, err.message);
-        res.status(500).json({ success: false, error: err.message });
-    }
+app.post('/api/:collection', (req, res, next) => {
+  try {
+    const { collection } = req.params;
+    assertCollection(collection);
+    res.status(201).json({ success: true, data: upsertRecord(collection, req.body) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// ============================================================
-// API: fetch_all - Compatibilidad con api.php antiguo
-// ============================================================
-app.all('/api.php', (req, res) => {
-    const action = req.query.action || req.body?.action;
-    const collection = req.query.collection || req.body?.collection;
-
-    if (!db) {
-        return res.json({ success: true, data: [], offline: true });
-    }
-
-    try {
-        switch (action) {
-            case 'create': {
-                const data = req.body.data || req.body;
-                const table = collection;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                if (!data.id) {
-                    return res.json({ success: false, error: 'Falta id' });
-                }
-                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
-                return res.json({ success: true });
-            }
-            case 'update': {
-                const data = req.body.data || req.body;
-                const table = collection;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
-                return res.json({ success: true });
-            }
-            case 'delete': {
-                const table = collection;
-                const id = req.query.id || req.body.id;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
-                return res.json({ success: true });
-            }
-            case 'fetch_all': {
-                const allData = {};
-                for (const t of ALLOWED_TABLES) {
-                    try {
-                        const rows = db.prepare(`SELECT id, data FROM ${t}`).all();
-                        allData[t] = rows.map(row => {
-                            try {
-                                return JSON.parse(row.data);
-                            } catch {
-                                return { id: row.id };
-                            }
-                        });
-                    } catch {
-                        allData[t] = [];
-                    }
-                }
-                return res.json({ success: true, data: allData });
-            }
-            case 'create_record': {
-                const data = req.body.data || req.body;
-                const table = collection;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                if (!data.id) {
-                    return res.json({ success: false, error: 'Falta id' });
-                }
-                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
-                return res.json({ success: true });
-            }
-            case 'update_record': {
-                const data = req.body.data || req.body;
-                const table = collection;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                db.prepare(`INSERT OR REPLACE INTO ${table} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`).run(data.id, JSON.stringify(data));
-                return res.json({ success: true });
-            }
-            case 'delete_record': {
-                const table = collection;
-                const id = req.query.id || req.body.id;
-                if (!ALLOWED_TABLES.includes(table)) {
-                    return res.json({ success: false, error: 'Tabla no permitida' });
-                }
-                db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
-                return res.json({ success: true });
-            }
-            default:
-                return res.json({ success: false, error: 'Acción no reconocida' });
-        }
-    } catch (err) {
-        console.error(`Error /api.php ${action}:`, err.message);
-        res.json({ success: false, error: err.message });
-    }
+app.delete('/api/:collection/:id', (req, res, next) => {
+  try {
+    const { collection, id } = req.params;
+    assertCollection(collection);
+    if (!ID_PATTERN.test(id)) return res.status(400).json({ success: false, error: 'ID de registro inválido' });
+    db.prepare(`DELETE FROM ${collection} WHERE id = ?`).run(id);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// ============================================================
-// Servir el frontend estático
-// ============================================================
-// Servir el frontend estático con headers anti-caché
 app.use(express.static(path.join(__dirname, '..', 'dist'), {
-    setHeaders: (res, filePath) => {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-    }
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-store'),
 }));
 
-// SPA fallback
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api') || req.path === '/api.php') {
-        return res.status(404).json({ success: false, error: 'Endpoint no encontrado' });
-    }
-    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  if (req.path.startsWith('/api/')) return res.status(404).json({ success: false, error: 'Endpoint no encontrado' });
+  const index = path.join(__dirname, '..', 'dist', 'index.html');
+  if (!fs.existsSync(index)) return next(new Error('No existe el build del frontend. Ejecuta npm run build.'));
+  res.sendFile(index);
 });
 
-// ============================================================
-// Iniciar servidor
-// ============================================================
-initDB();
-
-app.listen(PORT, HOST, () => {
-    console.log('============================================');
-    console.log('🐾 ERP Animal — Backend con SQLite');
-    console.log('============================================');
-    console.log(`📡 Puerto: ${PORT}`);
-    console.log(`🌐 Host: ${HOST}`);
-    console.log(`💾 BD: ${DB_PATH}`);
-    console.log(`🔗 Health: http://${HOST}:${PORT}/api/health`);
-    console.log('============================================');
+app.use((error, req, res, next) => {
+  const status = error.status || 500;
+  if (status >= 500) console.error(error);
+  res.status(status).json({ success: false, error: status >= 500 ? 'Error interno del servidor' : error.message });
 });
+
+function startServer() {
+  getSecrets();
+  initDB();
+  return app.listen(PORT, HOST, () => {
+    console.log(`ERP Animal escuchando en http://${HOST}:${PORT}`);
+    console.log(`Base de datos: ${DB_PATH}`);
+  });
+}
+
+if (require.main === module) startServer();
+
+module.exports = { app, startServer, initDB, closeDB, COLLECTIONS };

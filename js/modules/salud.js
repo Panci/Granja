@@ -110,8 +110,8 @@ window.Salud = (() => {
       emptyIcon: '💉',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay vacunas registradas',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('vacunas','${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('vacunas','${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('vacunas',${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('vacunas',${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
   }
@@ -147,8 +147,8 @@ window.Salud = (() => {
       emptyIcon: '🧴',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay desparasitaciones registradas',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('desparasitaciones','${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('desparasitaciones','${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('desparasitaciones',${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('desparasitaciones',${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
   }
@@ -180,9 +180,9 @@ window.Salud = (() => {
       emptyIcon: '💊',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay tratamientos registrados',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('tratamientos','${row.id}')">✏️</button>
-        ${row.estado === 'Activo' ? `<button class="btn-icon-action" title="Completar" onclick="Salud.completeTreatment('${row.id}')">✅</button>` : ''}
-        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('tratamientos','${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Salud.openForm('tratamientos',${Helpers.jsArg(row.id)})">✏️</button>
+        ${row.estado === 'Activo' ? `<button class="btn-icon-action" title="Completar" onclick="Salud.completeTreatment(${Helpers.jsArg(row.id)})">✅</button>` : ''}
+        <button class="btn-icon-action" title="Eliminar" onclick="Salud.confirmDelete('tratamientos',${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Salud.goToPage');
   }

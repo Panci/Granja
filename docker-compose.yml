@@ -15,6 +15,9 @@ services:
       HOST: 0.0.0.0
       PORT: 8080
       DB_PATH: /app/data/erp_animal.db
+      NODE_ENV: production
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD antes de desplegar}
+      SESSION_SECRET: ${SESSION_SECRET:?Define SESSION_SECRET antes de desplegar}
     volumes:
       - granja-data:/app/data
     healthcheck:

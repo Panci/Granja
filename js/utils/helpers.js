@@ -240,15 +240,17 @@ window.Helpers = (() => {
 
   function speciesIcon(nombre) {
     const sp = Store.getAll('especies').find(s => s.nombre === nombre);
-    return sp ? sp.icono : '🐾';
+    return sp ? escapeHtml(sp.icono) : '🐾';
   }
 
   function speciesSelect(selected, id = 'especie', includeAll = false) {
     const species = getSpecies();
-    let html = `<select class="form-input" id="${id}" name="${id}">`;
+    const safeId = escapeHtml(id);
+    let html = `<select class="form-input" id="${safeId}" name="${safeId}">`;
     if (includeAll) html += '<option value="">Todas las especies</option>';
     species.forEach(sp => {
-      html += `<option value="${sp.nombre}" ${sp.nombre === selected ? 'selected' : ''}>${sp.icono} ${sp.nombre}</option>`;
+      const name = escapeHtml(sp.nombre);
+      html += `<option value="${name}" ${sp.nombre === selected ? 'selected' : ''}>${escapeHtml(sp.icono)} ${name}</option>`;
     });
     html += '</select>';
     return html;
@@ -259,11 +261,13 @@ window.Helpers = (() => {
     let filtered = animals;
     if (options.especie) filtered = animals.filter(a => a.especie === options.especie);
     if (options.sexo) filtered = animals.filter(a => a.sexo === options.sexo);
-    let html = `<select class="form-input" id="${id}" name="${id}">`;
-    if (options.placeholder) html += `<option value="">${options.placeholder}</option>`;
+    const safeId = escapeHtml(id);
+    let html = `<select class="form-input" id="${safeId}" name="${safeId}">`;
+    if (options.placeholder) html += `<option value="">${escapeHtml(options.placeholder)}</option>`;
     filtered.forEach(a => {
       const sp = speciesIcon(a.especie);
-      html += `<option value="${a.id}" ${a.id === selected ? 'selected' : ''}>${sp} ${a.nombre} (${a.id})</option>`;
+      const animalId = escapeHtml(a.id);
+      html += `<option value="${animalId}" ${a.id === selected ? 'selected' : ''}>${sp} ${escapeHtml(a.nombre)} (${animalId})</option>`;
     });
     html += '</select>';
     return html;
@@ -353,6 +357,17 @@ window.Helpers = (() => {
     return div.innerHTML;
   }
 
+  // Argumento seguro para los pocos manejadores inline heredados.
+  // El JSON se codifica también como atributo HTML, evitando romper onclick.
+  function jsArg(value) {
+    return JSON.stringify(String(value))
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function monthName(monthIndex) {
     return ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][monthIndex];
   }
@@ -383,6 +398,7 @@ window.Helpers = (() => {
     speciesSelect,
     animalSelect,
     escapeHtml,
+    jsArg,
     monthName,
     currentMonth,
     getHealthAlerts,

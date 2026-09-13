@@ -14,6 +14,20 @@ window.Charts = (() => {
     return COLORS[i % COLORS.length];
   }
 
+  function _text(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function _number(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
   // ---- Bar Chart ----
 
   function barChart(data, options = {}) {
@@ -28,6 +42,7 @@ window.Charts = (() => {
     if (!data || data.length === 0) {
       return `<div class="chart-empty">Sin datos para mostrar</div>`;
     }
+    data = data.map(item => ({ ...item, label: _text(item.label), value: _number(item.value) }));
 
     const padding = { top: 20, right: 20, bottom: 50, left: 50 };
     const chartW = width - padding.left - padding.right;
@@ -85,7 +100,11 @@ window.Charts = (() => {
       centerSubText = '',
     } = options;
 
-    if (!data || data.length === 0 || data.every(d => d.value === 0)) {
+    if (!data || data.length === 0) {
+      return `<div class="chart-empty">Sin datos para mostrar</div>`;
+    }
+    data = data.map(item => ({ ...item, label: _text(item.label), value: _number(item.value) }));
+    if (data.every(d => d.value === 0)) {
       return `<div class="chart-empty">Sin datos para mostrar</div>`;
     }
 
@@ -118,10 +137,10 @@ window.Charts = (() => {
 
     // Center text
     if (centerText) {
-      svg += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" class="chart-center-text">${centerText}</text>`;
+      svg += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" class="chart-center-text">${_text(centerText)}</text>`;
     }
     if (centerSubText) {
-      svg += `<text x="${cx}" y="${cy + 16}" text-anchor="middle" class="chart-center-sub">${centerSubText}</text>`;
+      svg += `<text x="${cx}" y="${cy + 16}" text-anchor="middle" class="chart-center-sub">${_text(centerSubText)}</text>`;
     }
 
     svg += '</svg>';
@@ -159,6 +178,7 @@ window.Charts = (() => {
     if (!data || data.length === 0) {
       return `<div class="chart-empty">Sin datos para mostrar</div>`;
     }
+    data = data.map(item => ({ ...item, label: _text(item.label), value: _number(item.value) }));
 
     const padding = { top: 20, right: 20, bottom: 40, left: 45 };
     const chartW = width - padding.left - padding.right;
@@ -219,11 +239,12 @@ window.Charts = (() => {
   // ---- Mini stat number ----
 
   function statCard(value, label, icon, color = '#4ade80') {
-    return `<div class="stat-card" style="--accent:${color}">
-      <div class="stat-icon">${icon}</div>
+    const safeColor = /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#4ade80';
+    return `<div class="stat-card" style="--accent:${safeColor}">
+      <div class="stat-icon">${_text(icon)}</div>
       <div class="stat-info">
-        <div class="stat-value">${value}</div>
-        <div class="stat-label">${label}</div>
+        <div class="stat-value">${_text(value)}</div>
+        <div class="stat-label">${_text(label)}</div>
       </div>
     </div>`;
   }

@@ -4,7 +4,6 @@
 
 # Dependencias
 node_modules/
-package-lock.json
 
 # Build de producción
 dist/
@@ -35,6 +34,12 @@ desktop.ini
 *.sql.bak
 *.sqlite
 *.sqlite3
+
+# Datos SQLite en ejecución: deben persistir en el volumen, no en Git
+data/
+*.db
+*.db-shm
+*.db-wal
 
 # Archivos temporales
 *.tmp

@@ -55,7 +55,7 @@ window.Inventario = (() => {
             ${Helpers.renderSearchBox('�� Buscar por nombre, ID, raza...', 'inventarioSearch')}
             <select class="form-input form-input-sm" id="filterEspecie" onchange="Inventario.setFilter('especie', this.value)">
               <option value="">Todas las especies</option>
-              ${species.map(sp => `<option value="${sp.nombre}" ${currentFilter.especie === sp.nombre ? 'selected' : ''}>${sp.icono} ${sp.nombre}</option>`).join('')}
+              ${species.map(sp => `<option value="${Helpers.escapeHtml(sp.nombre)}" ${currentFilter.especie === sp.nombre ? 'selected' : ''}>${Helpers.escapeHtml(sp.icono)} ${Helpers.escapeHtml(sp.nombre)}</option>`).join('')}
             </select>
             <select class="form-input form-input-sm" id="filterEstado" onchange="Inventario.setFilter('estado', this.value)">
               <option value="">Todos los estados</option>
@@ -81,8 +81,8 @@ window.Inventario = (() => {
               emptyIcon: '��',
               emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay animales registrados. ¡Añade el primero!',
               actions: row => `
-                <button class="btn-icon-action" title="Editar" onclick="Inventario.openForm('${row.id}')">✏️</button>
-                <button class="btn-icon-action" title="Eliminar" onclick="Inventario.confirmDelete('${row.id}')">��️</button>
+                <button class="btn-icon-action" title="Editar" onclick="Inventario.openForm(${Helpers.jsArg(row.id)})">✏️</button>
+                <button class="btn-icon-action" title="Eliminar" onclick="Inventario.confirmDelete(${Helpers.jsArg(row.id)})">��️</button>
               `,
             }
           )}
@@ -209,8 +209,8 @@ window.Inventario = (() => {
       <div id="speciesListModal">
         ${species.map(sp => `
           <div class="species-row">
-            <span class="species-icon">${sp.icono}</span>
-            <span class="species-name">${sp.nombre}</span>
+            <span class="species-icon">${Helpers.escapeHtml(sp.icono)}</span>
+            <span class="species-name">${Helpers.escapeHtml(sp.nombre)}</span>
             <span class="species-gest">${sp.gestacionDias} días gestación</span>
           </div>
         `).join('')}

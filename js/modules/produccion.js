@@ -8,6 +8,8 @@ window.Produccion = (() => {
   let viewPeriod = 'semanal';
   let searchTerm = '';
   let currentPage = 1;
+  let quickDraft = null;
+  let quickDraftDate = null;
   const PAGE_SIZE = 25;
 
   function render() {
@@ -15,6 +17,8 @@ window.Produccion = (() => {
     const todayStr = Helpers.today();
     const todayReg = registros.find(r => r.fecha === todayStr);
     const todayCount = todayReg ? todayReg.cantidad : 0;
+    const quickCount = _getQuickDraft(todayStr, todayCount);
+    const hasPendingQuickSave = quickCount !== todayCount;
 
     // Stats
     const last7 = _getLast(7, registros);
@@ -43,14 +47,22 @@ window.Produccion = (() => {
         <div class="quick-register">
           <h2 class="card-title">Registro rápido — ${Helpers.formatDate(todayStr)}</h2>
           <div class="quick-counter">
-            <button class="counter-btn counter-minus" onclick="Produccion.quickAdjust(-1)">−</button>
-            <span class="counter-value" id="quickCount">${todayCount}</span>
-            <button class="counter-btn counter-plus" onclick="Produccion.quickAdjust(1)">＋</button>
+            <button class="counter-btn counter-minus" type="button" aria-label="Restar un huevo" onclick="Produccion.quickAdjust(-1)">−</button>
+            <span class="counter-value" id="quickCount">${quickCount}</span>
+            <button class="counter-btn counter-plus" type="button" aria-label="Sumar un huevo" onclick="Produccion.quickAdjust(1)">＋</button>
           </div>
           <div class="quick-actions">
-            <button class="btn btn-ghost btn-sm" onclick="Produccion.quickSet(0)">Reset</button>
-            <button class="btn btn-ghost btn-sm" onclick="Produccion.openForm()">📅 Otro día</button>
+            <button class="btn btn-primary btn-sm" type="button" id="quickSave" onclick="Produccion.quickSave()" ${hasPendingQuickSave ? '' : 'disabled'}>💾 Guardar</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="Produccion.quickSet(0)">Reset</button>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="Produccion.openForm()">📅 Otro día</button>
           </div>
+          <p class="quick-save-status ${hasPendingQuickSave ? 'is-pending' : ''}" id="quickSaveStatus" aria-live="polite">${hasPendingQuickSave ? 'Cambios sin guardar' : todayReg ? 'Registro guardado' : 'Selecciona una cantidad y guárdala'}</p>
+          ${todayReg ? `
+            <div class="quick-record-actions" aria-label="Acciones del registro de hoy">
+              <button class="btn btn-ghost btn-sm" type="button" onclick="Produccion.openForm(${Helpers.jsArg(todayReg.id)})">✏️ Editar registro</button>
+              <button class="btn btn-danger btn-sm" type="button" onclick="Produccion.confirmDelete(${Helpers.jsArg(todayReg.id)})">🗑️ Eliminar registro</button>
+            </div>
+          ` : ''}
         </div>
       </div>
 
@@ -122,49 +134,89 @@ window.Produccion = (() => {
 
     return Helpers.renderTable([
       { label: 'Fecha', render: r => Helpers.formatDate(r.fecha) },
-      { label: 'Cantidad', render: r => `<strong class="production-count">${r.cantidad}</strong> 🥚` },
+      { label: 'Cantidad', render: r => `<strong class="production-count">${Helpers.escapeHtml(r.cantidad)}</strong> 🥚` },
       { label: 'Tipo', render: r => r.tipo || 'Huevos' },
       { label: 'Notas', key: 'notas' },
     ], pageRows, {
       emptyIcon: '🥚',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay registros de producción',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Produccion.openForm('${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Produccion.confirmDelete('${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar registro" aria-label="Editar registro del ${Helpers.escapeHtml(Helpers.formatDate(row.fecha))}" onclick="Produccion.openForm(${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar registro" aria-label="Eliminar registro del ${Helpers.escapeHtml(Helpers.formatDate(row.fecha))}" onclick="Produccion.confirmDelete(${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Produccion.goToPage');
   }
 
   // ---- Quick register ----
 
-  function quickAdjust(delta) {
-    const todayStr = Helpers.today();
-    const registros = Store.getAll('produccion');
-    const existing = registros.find(r => r.fecha === todayStr);
-
-    if (existing) {
-      const newQty = Math.max(0, existing.cantidad + delta);
-      Store.update('produccion', existing.id, { cantidad: newQty });
-    } else if (delta > 0) {
-      Store.add('produccion', { fecha: todayStr, cantidad: delta, tipo: 'Huevos', notas: '' });
+  function _getQuickDraft(date, savedQuantity) {
+    if (quickDraftDate !== date || quickDraft === null) {
+      quickDraftDate = date;
+      quickDraft = savedQuantity;
     }
+    return quickDraft;
+  }
 
-    // Update counter display without full re-render
+  function _getSavedToday() {
+    const todayStr = Helpers.today();
+    return Store.getAll('produccion').find(r => r.fecha === todayStr) || null;
+  }
+
+  function _refreshQuickControls() {
+    const existing = _getSavedToday();
+    const savedQuantity = existing ? existing.cantidad : 0;
+    const value = _getQuickDraft(Helpers.today(), savedQuantity);
+    const hasPendingChanges = value !== savedQuantity;
     const counter = document.getElementById('quickCount');
+    const saveButton = document.getElementById('quickSave');
+    const status = document.getElementById('quickSaveStatus');
+
     if (counter) {
-      const reg = Store.getAll('produccion').find(r => r.fecha === todayStr);
-      counter.textContent = reg ? reg.cantidad : 0;
+      counter.textContent = value;
       counter.classList.add('counter-pulse');
       setTimeout(() => counter.classList.remove('counter-pulse'), 300);
     }
+    if (saveButton) saveButton.disabled = !hasPendingChanges;
+    if (status) {
+      status.textContent = hasPendingChanges
+        ? 'Cambios sin guardar'
+        : existing ? 'Registro guardado' : 'Selecciona una cantidad y guárdala';
+      status.classList.toggle('is-pending', hasPendingChanges);
+    }
+  }
+
+  function quickAdjust(delta) {
+    const existing = _getSavedToday();
+    const currentValue = _getQuickDraft(Helpers.today(), existing ? existing.cantidad : 0);
+    quickDraft = Math.max(0, currentValue + delta);
+    _refreshQuickControls();
   }
 
   function quickSet(val) {
+    quickDraftDate = Helpers.today();
+    quickDraft = Math.max(0, Number(val) || 0);
+    _refreshQuickControls();
+  }
+
+  function quickSave() {
     const todayStr = Helpers.today();
-    const existing = Store.getAll('produccion').find(r => r.fecha === todayStr);
-    if (existing) {
-      Store.update('produccion', existing.id, { cantidad: val });
+    const existing = _getSavedToday();
+    const savedQuantity = existing ? existing.cantidad : 0;
+    const quantity = _getQuickDraft(todayStr, savedQuantity);
+
+    if (quantity === savedQuantity) {
+      Helpers.showToast('No hay cambios que guardar', 'info');
+      return;
     }
+    if (!existing && quantity === 0) {
+      Helpers.showToast('Indica una cantidad mayor que cero', 'warning');
+      return;
+    }
+
+    if (existing) Store.update('produccion', existing.id, { cantidad: quantity });
+    else Store.add('produccion', { fecha: todayStr, cantidad: quantity, tipo: 'Huevos', notas: '' });
+
+    Helpers.showToast('Producción guardada');
     App.refreshModule();
   }
 
@@ -214,7 +266,16 @@ window.Produccion = (() => {
         };
 
         if (isEdit) {
+          const duplicate = Store.filter('produccion', r => r.fecha === fecha && r.id !== id);
+          if (duplicate.length > 0) {
+            Helpers.showToast('Ya existe un registro para esa fecha. Edítalo directamente.', 'error');
+            return false;
+          }
           Store.update('produccion', id, data);
+          if (existing.fecha === Helpers.today() || fecha === Helpers.today()) {
+            quickDraft = null;
+            quickDraftDate = null;
+          }
           Helpers.showToast('Registro actualizado');
         } else {
           // Check if date already exists
@@ -233,8 +294,16 @@ window.Produccion = (() => {
   }
 
   function confirmDelete(id) {
-    Helpers.confirmDialog('¿Eliminar este registro de producción?', () => {
+    const record = Store.getById('produccion', id);
+    const description = record
+      ? `¿Eliminar el registro de <strong>${Helpers.escapeHtml(Helpers.formatDate(record.fecha))}</strong> con <strong>${Helpers.escapeHtml(record.cantidad)}</strong> huevos?`
+      : '¿Eliminar este registro de producción?';
+    Helpers.confirmDialog(description, () => {
       Store.remove('produccion', id);
+      if (record?.fecha === Helpers.today()) {
+        quickDraft = null;
+        quickDraftDate = null;
+      }
       Helpers.showToast('Registro eliminado', 'warning');
       App.refreshModule();
     });
@@ -256,5 +325,5 @@ window.Produccion = (() => {
     App.refreshModule();
   }
 
-  return { render, quickAdjust, quickSet, openForm, confirmDelete, setViewPeriod, setSearch, goToPage };
+  return { render, quickAdjust, quickSet, quickSave, openForm, confirmDelete, setViewPeriod, setSearch, goToPage };
 })();

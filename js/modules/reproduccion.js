@@ -77,8 +77,8 @@ window.Reproduccion = (() => {
           <div class="gestacion-footer">
             <span class="gestacion-progress">${progress}% — ${daysLeft !== null && daysLeft > 0 ? `${daysLeft} día${daysLeft !== 1 ? 's' : ''} restante${daysLeft !== 1 ? 's' : ''}` : daysLeft === 0 ? '¡Hoy es el día!' : 'Fecha pasada'}</span>
             <div>
-              <button class="btn btn-sm btn-ghost" onclick="Reproduccion.registerBirth('${g.id}')">🍼 Registrar Parto</button>
-              <button class="btn-icon-action" onclick="Reproduccion.openForm('${g.id}')">✏️</button>
+              <button class="btn btn-sm btn-ghost" onclick="Reproduccion.registerBirth(${Helpers.jsArg(g.id)})">🍼 Registrar Parto</button>
+              <button class="btn-icon-action" onclick="Reproduccion.openForm(${Helpers.jsArg(g.id)})">✏️</button>
             </div>
           </div>
         </div>
@@ -119,8 +119,8 @@ window.Reproduccion = (() => {
       emptyIcon: '🐣',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay registros de reproducción',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Reproduccion.openForm('${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Reproduccion.confirmDelete('${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Reproduccion.openForm(${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Reproduccion.confirmDelete(${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Reproduccion.goToPage');
   }

@@ -2,20 +2,27 @@
   "name": "erp-animal",
   "version": "1.0.0",
   "description": "ERP Animal — Sistema de Gestión Veterinaria y Cuidado Animal",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "clean": "node -e \"import('fs').then(fs => { fs.rmSync('dist', { recursive: true, force: true }); fs.mkdirSync('dist', { recursive: true }); })\"",
     "build": "npm run clean && vite build",
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-3000}",
-    "start": "node server/index.js",
-    "serve": "node server/index.js"
+    "start": "node --env-file=.env server/index.js",
+    "serve": "node --env-file=.env server/index.js",
+    "test": "node --test"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "mysql2": "^3.11.5",
-    "cors": "^2.8.5"
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "helmet": "^8.0.0"
   },
   "devDependencies": {
     "vite": "^6.3.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }

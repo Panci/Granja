@@ -74,15 +74,15 @@ window.Alimentacion = (() => {
         }
       },
       { label: 'Tipo de Comida', key: 'tipoPienso' },
-      { label: 'Cantidad', render: r => `${r.cantidad || '—'} ${r.unidad || ''}` },
+      { label: 'Cantidad', render: r => `${Helpers.escapeHtml(r.cantidad || '—')} ${Helpers.escapeHtml(r.unidad || '')}` },
       { label: 'Frecuencia', key: 'frecuencia' },
       { label: 'Notas', key: 'notas' },
     ], pageRows, {
       emptyIcon: '🥣',
       emptyText: searchTerm ? 'Sin resultados para la búsqueda' : 'No hay dietas configuradas',
       actions: row => `
-        <button class="btn-icon-action" title="Editar" onclick="Alimentacion.openDietForm('${row.id}')">✏️</button>
-        <button class="btn-icon-action" title="Eliminar" onclick="Alimentacion.confirmDelete('dietas','${row.id}')">🗑️</button>
+        <button class="btn-icon-action" title="Editar" onclick="Alimentacion.openDietForm(${Helpers.jsArg(row.id)})">✏️</button>
+        <button class="btn-icon-action" title="Eliminar" onclick="Alimentacion.confirmDelete('dietas',${Helpers.jsArg(row.id)})">🗑️</button>
       `,
     }) + Helpers.renderPagination(currentPage, totalPages, 'Alimentacion.goToPage');
   }
@@ -124,7 +124,7 @@ window.Alimentacion = (() => {
 
       html += `
         <div class="task-item ${urgency}">
-          <button class="task-check" onclick="Alimentacion.toggleTask('${t.id}')" title="Marcar completada">
+          <button class="task-check" onclick="Alimentacion.toggleTask(${Helpers.jsArg(t.id)})" title="Marcar completada">
             <span class="task-check-inner"></span>
           </button>
           <div class="task-content">
@@ -137,8 +137,8 @@ window.Alimentacion = (() => {
             </div>
           </div>
           <div class="task-actions">
-            <button class="btn-icon-action" onclick="Alimentacion.openTaskForm('${t.id}')">✏️</button>
-            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas','${t.id}')">🗑️</button>
+            <button class="btn-icon-action" onclick="Alimentacion.openTaskForm(${Helpers.jsArg(t.id)})">✏️</button>
+            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas',${Helpers.jsArg(t.id)})">🗑️</button>
           </div>
         </div>
       `;
@@ -151,13 +151,13 @@ window.Alimentacion = (() => {
       completadas.slice(-10).reverse().forEach(t => {
         html += `
           <div class="task-item task-completed">
-            <button class="task-check task-checked" onclick="Alimentacion.uncompleteTask('${t.id}')" title="Desmarcar">
+            <button class="task-check task-checked" onclick="Alimentacion.uncompleteTask(${Helpers.jsArg(t.id)})" title="Desmarcar">
               <span class="task-check-inner">✓</span>
             </button>
             <div class="task-content">
               <div class="task-title">${Helpers.escapeHtml(t.titulo)}</div>
             </div>
-            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas','${t.id}')">��️</button>
+            <button class="btn-icon-action" onclick="Alimentacion.confirmDelete('tareas',${Helpers.jsArg(t.id)})">��️</button>
           </div>
         `;
       });

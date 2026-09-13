@@ -3,8 +3,6 @@
    ERP Animal — Sistema de Gestión Veterinaria
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
 /* ---- CSS Variables ---- */
 :root {
   /* Dark theme (default) */
@@ -130,6 +128,30 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 
+/* ---- Authentication ---- */
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.login-card {
+  width: min(100%, 380px);
+  padding: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-lg);
+}
+
+.login-logo { font-size: 2.5rem; margin-bottom: .75rem; }
+.login-card h1 { margin-bottom: .5rem; }
+.login-card p { color: var(--text-secondary); line-height: 1.5; margin-bottom: 1.5rem; }
+.login-card .form-input { width: 100%; margin: .4rem 0 .75rem; }
+.login-submit { width: 100%; justify-content: center; }
+.login-error { min-height: 1.25rem; color: var(--danger) !important; font-size: .85rem; margin: 0 0 .5rem !important; }
+
 /* ---- Background pattern ---- */
 body::before {
   content: '';
@@ -230,6 +252,14 @@ body::before {
   user-select: none;
 }
 
+.nav-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
 .nav-item:hover {
   background: var(--bg-glass-hover);
   color: var(--text-primary);
@@ -304,7 +334,7 @@ body::before {
   z-index: 1500;
   width: 48px;
   height: 48px;
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-card);
@@ -326,6 +356,11 @@ body::before {
   transform: scale(1.05);
 }
 
+/* El botón estático pertenece a la pantalla de acceso. */
+body.is-authenticated .theme-fab-static {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .theme-fab,
   .theme-fab-static {
@@ -342,6 +377,13 @@ body::before {
   inset: 0;
   background: var(--sidebar-overlay-bg);
   z-index: 99;
+}
+
+/* Los controles de navegación móvil solo se muestran en su breakpoint. */
+.bottom-nav,
+.mobile-menu,
+.mobile-menu-overlay {
+  display: none;
 }
 
 /* ---- Module Header ---- */
@@ -498,6 +540,17 @@ body::before {
   background: var(--bg-glass-hover);
   color: var(--text-primary);
   border-color: var(--border-active);
+}
+
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger);
+  color: #fff;
 }
 
 .btn-sm {
@@ -1172,6 +1225,27 @@ select.form-input {
   display: flex;
   justify-content: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.quick-save-status {
+  min-height: 1.25rem;
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.quick-save-status.is-pending {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.quick-record-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
 }
 
 /* ---- Production count ---- */

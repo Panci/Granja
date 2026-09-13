@@ -20,16 +20,74 @@ window.App = (() => {
   async function init() {
     // Aplica el tema persistido (o el del sistema) lo antes posible.
     Theme.apply(Theme.get());
-    // Intentar sincronizar con BD, pero continuar si falla
+    if (!await Store.checkSession()) {
+      _renderLogin();
+      return;
+    }
+    await _startAuthenticated();
+  }
+
+  async function _startAuthenticated() {
+    document.body.classList.add('is-authenticated');
     try {
       await Store.syncFromDatabase();
     } catch (e) {
-      console.log('�� Modo offline - usando localStorage');
+      console.warn('No se pudo sincronizar al iniciar:', e);
     }
     Store.initDefaultSpecies();
     _renderShell();
     navigateTo('dashboard');
     _bindSidebarToggle();
+  }
+
+  function _renderLogin() {
+    document.body.classList.remove('is-authenticated');
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <main class="login-page">
+        <section class="login-card" aria-labelledby="loginTitle">
+          <div class="login-logo" aria-hidden="true">🐾</div>
+          <h1 id="loginTitle">ERP Animal</h1>
+          <p>Introduce la contraseña de administración para acceder a los datos.</p>
+          <form id="loginForm">
+            <label class="form-label" for="loginPassword">Contraseña</label>
+            <input class="form-input" id="loginPassword" type="password" autocomplete="current-password" required>
+            <p class="login-error" id="loginError" role="alert"></p>
+            <button class="btn btn-primary login-submit" id="loginSubmit" type="submit">Entrar</button>
+          </form>
+        </section>
+      </main>
+    `;
+    const form = document.getElementById('loginForm');
+    form.addEventListener('submit', login);
+    document.getElementById('loginPassword').focus();
+  }
+
+  async function login(event) {
+    event.preventDefault();
+    const passwordInput = document.getElementById('loginPassword');
+    const error = document.getElementById('loginError');
+    const submit = document.getElementById('loginSubmit');
+    submit.disabled = true;
+    error.textContent = '';
+    try {
+      await Store.login(passwordInput.value);
+      passwordInput.value = '';
+      await _startAuthenticated();
+    } catch (err) {
+      error.textContent = err.message || 'No se pudo iniciar sesión.';
+      passwordInput.focus();
+    } finally {
+      submit.disabled = false;
+    }
+  }
+
+  async function logout() {
+    try {
+      await Store.logout();
+    } finally {
+      _renderLogin();
+    }
   }
 
   function _renderShell() {
@@ -71,6 +129,10 @@ window.App = (() => {
               <span class="nav-icon" data-theme-icon>☀️</span>
               <span class="nav-label" data-theme-label>Modo claro</span>
             </div>
+            <button class="nav-item nav-button" type="button" onclick="App.logout()">
+              <span class="nav-icon">🔒</span>
+              <span class="nav-label">Cerrar sesión</span>
+            </button>
             <div class="nav-item" onclick="App.exportData()">
               <span class="nav-icon">💾</span>
               <span class="nav-label">Exportar Datos</span>
@@ -515,6 +577,8 @@ window.App = (() => {
     exportData,
     importData,
     toggleTheme,
+    login,
+    logout,
     handlePageClick,
     toggleMobileMenu,
     closeMobileMenu,
